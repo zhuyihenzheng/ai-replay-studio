@@ -11,7 +11,7 @@ export const ja: EnglishDictionary = {
   tabs: {
     replay: 'リプレイ',
     tool_graph: 'トレース',
-    cost: 'コスト',
+    cost: '使用量',
     files: 'ファイル',
     artifacts: '成果物',
     client_report: 'レポート',
@@ -19,7 +19,7 @@ export const ja: EnglishDictionary = {
   dashboard: {
     workspace: 'ワークスペース',
     title: 'すべてのセッション',
-    subtitle: 'AI コーディングエージェントが何を・なぜ・いくらで実行したかをリプレイします。',
+    subtitle: 'AI コーディングエージェントが何を・なぜ・どれだけのトークンで実行したかをリプレイします。',
     stat: {
       total_sessions: 'セッション総数',
       success_rate: '成功率',
@@ -28,12 +28,10 @@ export const ja: EnglishDictionary = {
       saved_artifacts: '保存済み成果物',
     },
     hero: {
-      api_equivalent_label: 'API 換算額:',
-      billable_label: 'プラン外の支出:',
-      covered_by_plan: 'すべてサブスクリプションに含まれると推定。',
+      tokens_label: '使用トークン:',
+      cache_label: 'キャッシュ命中:',
       caption:
-        '左側は公開 API レートで換算したトークン使用額、右側はサブスクリプション外の支出（API・追加利用）の推定で、実際の請求書ではありません。',
-      arrow_aria: 'API 換算額から請求見込みへの変換',
+        '左: 絞り込み範囲の合計トークン数。右: 入力のうちプロンプトキャッシュから返された割合 — 各社ともキャッシュ命中は新規入力の約1/10で課金するため、割合が高いほど安く済みます。',
     },
     search_placeholder: 'セッションを検索...',
     empty_match: '該当するセッションがありません',
@@ -150,7 +148,7 @@ export const ja: EnglishDictionary = {
     confidence: '信頼度 {confidence}',
     billable_estimate: '請求見込み',
     billing_mode: '課金モード',
-    most_expensive_stage: '最もコストの高いステージ',
+    most_expensive_stage: '最もトークンを使うステージ',
     retry_waste: 'リトライによる無駄',
     limit_observed: '上限を検出',
     not_classified: '未分類',
@@ -160,12 +158,12 @@ export const ja: EnglishDictionary = {
     billing_interpretation_desc:
       'API 換算額は公開 API レートで算出したトークン使用額です。請求見込みは、プランに含まれる Claude Code 利用分と、API・追加利用の支出を分けて表示します。',
     value_billable: '価値 {value} · 請求 {billable}',
-    cost_by_stage: 'ステージ別コスト',
+    cost_by_stage: 'ステージ別トークン',
     stages_count: '{n} ステージ',
     stages_count_plural: '{n} ステージ',
-    cumulative_cost_over_steps: 'ステップ累計コスト',
+    cumulative_cost_over_steps: 'ステップ累計トークン',
     by_stage: 'ステージ別',
-    top_expensive_steps: 'コストの高いステップ 上位 {n} 件',
+    top_expensive_steps: 'トークンの多いステップ 上位 {n} 件',
     of_steps: '/ {n} 件',
     failed: '失敗',
     other_steps: 'その他 ({n} ステップ)',
@@ -235,7 +233,7 @@ export const ja: EnglishDictionary = {
     what_was_delivered: '成果物',
     no_deliverables: 'このセッションに成果物はありません。',
     issues_encountered: '発生した問題',
-    cost_time: 'コストと時間',
+    cost_time: 'トークン使用量と時間',
     cost_summary: {
       plan_name: 'お使いの Claude Code プラン',
       subscription:
@@ -246,7 +244,7 @@ export const ja: EnglishDictionary = {
       unknown: 'このセッションのコストデータはありません。',
     },
     time_spent: '所要時間',
-    billable_estimate: '請求見込み',
+    billable_estimate: '使用トークン',
     recommended_next_steps: '推奨される次のステップ',
     generated_by: 'AI Replay Studio により生成',
     session_id: 'セッション {id}',
@@ -276,6 +274,6 @@ export const ja: EnglishDictionary = {
     issues: '問題',
     no_issues: '問題は検出されませんでした。',
     next_steps: '次のステップ',
-    cost_snapshot: 'コスト概況',
+    cost_snapshot: 'トークン概況',
   },
 }

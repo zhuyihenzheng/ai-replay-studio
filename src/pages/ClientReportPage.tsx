@@ -6,7 +6,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Clock,
-  Coins,
+  Hash,
   Share2,
   Printer,
   Sparkles,
@@ -14,8 +14,7 @@ import {
 import { useAppStore } from '@/store'
 import { SessionShell, SessionDoc } from '@/components/SessionShell'
 import { EmptyState } from '@/components/EmptyState'
-import { billingValue } from '@/lib/cost'
-import { formatCost, formatDateTime, formatDuration } from '@/lib/format'
+import { formatDateTime, formatDuration, formatTokens } from '@/lib/format'
 import { useT } from '@/i18n'
 import type { SessionStatus } from '@/types'
 
@@ -54,31 +53,6 @@ export function ClientReportPage() {
     ['final-answer', 'decision', 'markdown'].includes(a.kind),
   )
   const hasDeliverables = session.files.length > 0 || notableArtifacts.length > 0
-  const costSummaryMuted = !session.billing || session.billing.payer === 'unknown'
-  const costSummary = (() => {
-    const billing = session.billing
-    if (!billing) return t('client_report.cost_summary.unknown')
-    switch (billing.payer) {
-      case 'subscription':
-        return t('client_report.cost_summary.subscription', {
-          planName: t('client_report.cost_summary.plan_name'),
-        })
-      case 'api':
-        return t('client_report.cost_summary.api', {
-          amount: formatCost(billing.apiBilledUsd),
-        })
-      case 'extra-usage':
-        return t('client_report.cost_summary.extra_usage', {
-          amount: formatCost(billing.extraUsageUsd),
-        })
-      case 'mixed':
-        return t('client_report.cost_summary.mixed', {
-          extraAmount: formatCost(billing.extraUsageUsd),
-        })
-      default:
-        return t('client_report.cost_summary.unknown')
-    }
-  })()
 
   async function onShare() {
     try {
@@ -331,21 +305,6 @@ export function ClientReportPage() {
           )}
 
           <ReportSection title={t('client_report.cost_time')}>
-            <div
-              style={{
-                padding: '10px 14px',
-                borderRadius: 9999,
-                background: costSummaryMuted ? '#f8f7f4' : '#fef6ee',
-                border: `1px solid ${costSummaryMuted ? '#efece5' : '#fde9d3'}`,
-                color: costSummaryMuted ? '#8d836b' : '#b25515',
-                fontSize: 13,
-                fontWeight: 600,
-                lineHeight: 1.4,
-                marginBottom: 12,
-              }}
-            >
-              {costSummary}
-            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <ReportStat
                 icon={<Clock size={12} />}
@@ -353,9 +312,9 @@ export function ClientReportPage() {
                 value={formatDuration(session.durationMs)}
               />
               <ReportStat
-                icon={<Coins size={12} />}
+                icon={<Hash size={12} />}
                 label={t('client_report.billable_estimate')}
-                value={session.billing ? billingValue(session.billing, t) : formatCost(session.costUsd)}
+                value={formatTokens(session.tokensIn + session.tokensOut)}
               />
             </div>
           </ReportSection>

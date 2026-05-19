@@ -1,18 +1,14 @@
 import { useMemo } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useAppStore } from '@/store'
 import { SessionShell, SessionDoc } from '@/components/SessionShell'
 import { EmptyState } from '@/components/EmptyState'
 import { HorizontalBarChart, StackedAreaChart } from '@/components/Charts'
-import {
-  apiEquivalentFor,
-  billableFor,
-  billingSubtext,
-  billingTitle,
-  billingValue,
-} from '@/lib/cost'
-import { formatCost, formatTokens } from '@/lib/format'
+import { formatTokens } from '@/lib/format'
 import { useT } from '@/i18n'
+
+const tokensOfCall = (c?: { tokensIn?: number; tokensOut?: number }) =>
+  c ? (c.tokensIn ?? 0) + (c.tokensOut ?? 0) : 0
 
 const STAGE_PALETTE = [
   '#b25515', // accent terracotta
@@ -23,7 +19,6 @@ const STAGE_PALETTE = [
   '#5e5644', // ink
 ]
 
-const TOP_N = 20
 
 export function CostAnalysisPage() {
   const t = useT()
@@ -34,14 +29,15 @@ export function CostAnalysisPage() {
     if (!session) return 0
     return session.toolCalls
       .filter((tc) => tc.status === 'failed' || (tc.retries ?? 0) > 0)
-      .reduce((a, tc) => a + apiEquivalentFor(tc), 0)
+      .reduce((a, tc) => a + tokensOfCall(tc), 0)
   }, [session])
 
   const stageData = useMemo(() => {
     if (!session) return []
+    const callById = new Map(session.toolCalls.map((c) => [c.id, c]))
     return session.stages.map((st, i) => ({
       label: st.name,
-      value: parseFloat(apiEquivalentFor(st).toFixed(4)),
+      value: st.toolCallIds.reduce((a, cid) => a + tokensOfCall(callById.get(cid)), 0),
       color: STAGE_PALETTE[i % STAGE_PALETTE.length],
       status: st.status,
     }))
@@ -55,7 +51,7 @@ export function CostAnalysisPage() {
     })
     const perStep = session.toolCalls.map((tc) => ({
       stageIndex: stageIdxByCallId.get(tc.id) ?? 0,
-      cost: apiEquivalentFor(tc),
+      cost: tokensOfCall(tc),
     }))
     const stages = session.stages.map((st, i) => ({
       name: st.name,
@@ -64,24 +60,9 @@ export function CostAnalysisPage() {
     return { perStep, stages }
   }, [session])
 
-  const breakdown = useMemo(() => {
-    if (!session) return { top: [], restCost: 0, restCount: 0, restFailed: 0 }
-    const sorted = [...session.toolCalls].sort(
-      (a, b) => apiEquivalentFor(b) - apiEquivalentFor(a),
-    )
-    const top = sorted.slice(0, TOP_N)
-    const rest = sorted.slice(TOP_N)
-    return {
-      top,
-      restCost: rest.reduce((a, tc) => a + apiEquivalentFor(tc), 0),
-      restCount: rest.length,
-      restFailed: rest.filter((tc) => tc.status === 'failed').length,
-    }
-  }, [session])
-
   if (!session) return <EmptyState title={t('session.not_found')} />
 
-  const mostExpensive = [...session.stages].sort((a, b) => apiEquivalentFor(b) - apiEquivalentFor(a))[0]
+  const mostHeavyStage = [...stageData].sort((a, b) => b.value - a.value)[0]
   const totalTokens = session.tokensIn + session.tokensOut
 
   const u = session.usage
@@ -95,10 +76,6 @@ export function CostAnalysisPage() {
       ].filter((r) => r.n > 0)
     : []
   const tokenMixTotal = tokenMix.reduce((a, r) => a + r.n, 0)
-  const billing = session.billing
-  const sessionApiEquivalent = apiEquivalentFor(session)
-  const sessionBillable = billableFor(session)
-
   const cards: { label: string; value: string; sub: string | null; accent?: boolean }[] = [
     {
       label: t('cost.total_tokens'),
@@ -109,43 +86,20 @@ export function CostAnalysisPage() {
       }),
     },
     {
-      label: t('cost.api_equivalent_value'),
-      value: formatCost(sessionApiEquivalent),
-      sub: session.costEstimate?.confidence
-        ? t('cost.confidence', { confidence: session.costEstimate.confidence })
-        : t('cost.list_price_estimate'),
-    },
-    {
-      label: t('cost.billable_estimate'),
-      value: billingValue(billing, t),
-      sub: billingSubtext(billing, t),
-      accent: sessionBillable > 0 || (billing?.unknownUsdEquivalent ?? 0) > 0,
-    },
-    {
-      label: t('cost.billing_mode'),
-      value: billingTitle(billing, t),
-      sub: billing?.limitHit
-        ? billing.limitResetText ?? t('cost.limit_observed')
-        : billing?.planName ?? t('cost.not_classified'),
-    },
-    {
       label: t('cost.most_expensive_stage'),
-      value: mostExpensive?.name ?? '—',
-      sub: mostExpensive ? formatCost(apiEquivalentFor(mostExpensive)) : null,
+      value: mostHeavyStage?.label ?? '—',
+      sub: mostHeavyStage
+        ? t('session_card.tokens', { n: formatTokens(mostHeavyStage.value) })
+        : null,
     },
     {
       label: t('cost.retry_waste'),
-      value: formatCost(retryWaste),
+      value: t('session_card.tokens', { n: formatTokens(retryWaste) }),
       sub: retryWaste > 0 ? t('cost.recoverable') : t('cost.clean_run'),
       accent: retryWaste > 0,
     },
   ]
 
-  const breakdownMax = Math.max(
-    ...breakdown.top.map((tc) => apiEquivalentFor(tc)),
-    breakdown.restCost,
-    0.0001,
-  )
 
   return (
     <SessionShell session={session}>
@@ -265,42 +219,6 @@ export function CostAnalysisPage() {
         </div>
 
         <div
-          className="card"
-          style={{
-            padding: '14px 18px',
-            marginBottom: 16,
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 16,
-            alignItems: 'center',
-            background: '#fbfaf7',
-          }}
-        >
-          <div>
-            <div className="section-label" style={{ marginBottom: 4 }}>
-              {t('cost.billing_interpretation')}
-            </div>
-            <div style={{ fontSize: 13, color: '#3f3a2d', lineHeight: 1.5 }}>
-              {t('cost.billing_interpretation_desc')}
-            </div>
-          </div>
-          <div
-            style={{
-              fontSize: 12,
-              color: '#8d836b',
-              textAlign: 'right',
-              fontVariantNumeric: 'tabular-nums',
-              flexShrink: 0,
-            }}
-          >
-            {t('cost.value_billable', {
-              value: formatCost(sessionApiEquivalent),
-              billable: billingValue(billing, t),
-            })}
-          </div>
-        </div>
-
-        <div
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
@@ -326,7 +244,7 @@ export function CostAnalysisPage() {
             </div>
             <HorizontalBarChart
               data={stageData}
-              formatY={(v) => formatCost(v)}
+              formatY={(v) => formatTokens(v)}
             />
           </div>
           <div className="card" style={{ padding: 20 }}>
@@ -344,181 +262,11 @@ export function CostAnalysisPage() {
             <StackedAreaChart
               perStep={stagedSeries.perStep}
               stages={stagedSeries.stages}
-              formatY={(v) => `$${v.toFixed(2)}`}
+              formatY={(v) => formatTokens(v)}
             />
           </div>
         </div>
 
-        <div className="card" style={{ padding: 20 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              justifyContent: 'space-between',
-              marginBottom: 14,
-            }}
-          >
-            <div className="section-label">
-              {t('cost.top_expensive_steps', { n: Math.min(TOP_N, session.toolCalls.length) })}
-            </div>
-            <div style={{ fontSize: 11, color: '#bdb39c' }}>
-              {t('cost.of_steps', { n: session.toolCalls.length })}
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {breakdown.top.map((tc) => {
-              const cost = apiEquivalentFor(tc)
-              const pct = (cost / breakdownMax) * 100
-              const isFailed = tc.status === 'failed'
-              const toks = (tc.tokensIn ?? 0) + (tc.tokensOut ?? 0)
-              return (
-                <Link
-                  key={tc.id}
-                  to={`/sessions/${session.id}/graph?call=${tc.id}`}
-                  title={`${tc.title} — open in Trace`}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    textDecoration: 'none',
-                    color: 'inherit',
-                    borderRadius: 6,
-                    padding: '5px 6px',
-                    margin: '0 -6px',
-                    transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#faf8f3')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <div
-                    style={{
-                      width: 200,
-                      fontSize: 12,
-                      color: '#3f3a2d',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {tc.title}
-                  </div>
-                  <div
-                    style={{
-                      flex: 1,
-                      height: 6,
-                      background: '#efece5',
-                      borderRadius: 3,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: '100%',
-                        width: `${Math.max(0.5, pct)}%`,
-                        background: isFailed ? '#f43f5e' : '#1a1814',
-                        borderRadius: 3,
-                        opacity: 0.7,
-                      }}
-                    />
-                  </div>
-                  <div
-                    style={{
-                      width: 82,
-                      textAlign: 'right',
-                      fontSize: 11,
-                      color: '#8d836b',
-                      fontVariantNumeric: 'tabular-nums',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {toks > 0 ? t('session_card.tokens', { n: formatTokens(toks) }) : '—'}
-                  </div>
-                  <div
-                    style={{
-                      width: 64,
-                      textAlign: 'right',
-                      fontSize: 11,
-                      color: '#8d836b',
-                      fontVariantNumeric: 'tabular-nums',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {formatCost(cost)}
-                  </div>
-                  {isFailed && (
-                    <span style={{ fontSize: 10, color: '#f43f5e', fontWeight: 600 }}>
-                      {t('cost.failed')}
-                    </span>
-                  )}
-                </Link>
-              )
-            })}
-            {breakdown.restCount > 0 && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  paddingTop: 8,
-                  marginTop: 4,
-                  borderTop: '1px dashed #efece5',
-                }}
-              >
-                <div
-                  style={{
-                    width: 200,
-                    fontSize: 12,
-                    color: '#8d836b',
-                    fontStyle: 'italic',
-                    flexShrink: 0,
-                  }}
-                >
-                  {t(
-                    breakdown.restCount === 1 ? 'cost.other_steps' : 'cost.other_steps_plural',
-                    { n: breakdown.restCount },
-                  )}
-                </div>
-                <div
-                  style={{
-                    flex: 1,
-                    height: 6,
-                    background: '#efece5',
-                    borderRadius: 3,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div
-                    style={{
-                      height: '100%',
-                      width: `${Math.max(0.5, (breakdown.restCost / breakdownMax) * 100)}%`,
-                      background: '#bdb39c',
-                      borderRadius: 3,
-                      opacity: 0.7,
-                    }}
-                  />
-                </div>
-                <div
-                  style={{
-                    width: 64,
-                    textAlign: 'right',
-                    fontSize: 11,
-                    color: '#8d836b',
-                    fontVariantNumeric: 'tabular-nums',
-                    flexShrink: 0,
-                  }}
-                >
-                  {formatCost(breakdown.restCost)}
-                </div>
-                {breakdown.restFailed > 0 && (
-                  <span style={{ fontSize: 10, color: '#f43f5e', fontWeight: 600 }}>
-                    {breakdown.restFailed} {t('cost.failed')}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
       </SessionDoc>
     </SessionShell>
   )

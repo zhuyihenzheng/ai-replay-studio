@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom'
-import { ChevronLeft, Clock, Coins, Wrench, FileDiff } from 'lucide-react'
+import { ChevronLeft, Clock, Hash, Wrench, FileDiff } from 'lucide-react'
 import type { Session } from '@/types'
-import { formatCost, formatDuration } from '@/lib/format'
-import { apiEquivalentFor, billingValue } from '@/lib/cost'
+import { formatDuration, formatTokens } from '@/lib/format'
 import { SourceBadge, StatusBadge } from './Badge'
 import { useT } from '@/i18n'
 
@@ -38,8 +37,8 @@ export function SessionHeader({ session }: { session: Session }) {
             {formatDuration(session.durationMs)}
           </span>
           <span className="flex items-center gap-1">
-            <Coins size={12} />
-            {session.billing ? billingValue(session.billing, t) : formatCost(apiEquivalentFor(session))}
+            <Hash size={12} />
+            {t('session_card.tokens', { n: formatTokens(session.tokensIn + session.tokensOut) })}
           </span>
           <span className="flex items-center gap-1">
             <Wrench size={12} />

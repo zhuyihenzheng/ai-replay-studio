@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Filter, Calendar, Sparkles, Clock, Coins, Wrench, FileDiff, RotateCw } from 'lucide-react'
+import { Search, Filter, Calendar, Sparkles, Clock, Wrench, FileDiff, RotateCw } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { SourceBadge, StatusBadge } from '@/components/Badge'
 import { MiniTimeline } from '@/components/MiniTimeline'
 import { EmptyState } from '@/components/EmptyState'
-import { apiEquivalentFor, billableFor, billingValue } from '@/lib/cost'
-import { formatCost, formatDuration, formatRelative, formatTokens } from '@/lib/format'
+import { formatDuration, formatRelative, formatTokens } from '@/lib/format'
 import { useT } from '@/i18n'
 import type { AgentSource, Session, SessionStatus } from '@/types'
 
@@ -53,11 +52,24 @@ export function DashboardPage() {
   const totals = useMemo(() => {
     const successful = filtered.filter((s) => s.status === 'success').length
     const settled = filtered.filter((s) => s.status !== 'running').length
+    const tokens = filtered.reduce((a, s) => a + s.tokensIn + s.tokensOut, 0)
+    const cacheRead = filtered.reduce((a, s) => a + (s.usage?.cacheReadTokens ?? 0), 0)
+    const inputish = filtered.reduce(
+      (a, s) =>
+        a +
+        (s.usage
+          ? s.usage.inputTokens +
+            s.usage.cacheReadTokens +
+            s.usage.cacheWrite5mTokens +
+            s.usage.cacheWrite1hTokens
+          : s.tokensIn),
+      0,
+    )
     return {
       sessions: filtered.length,
       successRate: settled === 0 ? 0 : successful / settled,
-      apiEquivalent: filtered.reduce((a, s) => a + apiEquivalentFor(s), 0),
-      billable: filtered.reduce((a, s) => a + billableFor(s), 0),
+      tokens,
+      cacheShare: inputish > 0 ? cacheRead / inputish : 0,
       artifacts: filtered.reduce((a, s) => a + s.artifacts.length, 0),
     }
   }, [filtered])
@@ -103,7 +115,7 @@ export function DashboardPage() {
                 lineHeight: 1.15,
               }}
             >
-              {t('dashboard.hero.api_equivalent_label')} {formatCost(totals.apiEquivalent)}
+              {t('dashboard.hero.tokens_label')} {formatTokens(totals.tokens)}
             </div>
           </div>
           <div style={{ flex: '1 1 230px', minWidth: 0, textAlign: 'right' }}>
@@ -112,17 +124,12 @@ export function DashboardPage() {
                 fontFamily: '"Source Serif 4", serif',
                 fontSize: 28,
                 fontWeight: 600,
-                color: '#b25515',
+                color: '#5e8b6a',
                 lineHeight: 1.15,
               }}
             >
-              {t('dashboard.hero.billable_label')} {formatCost(totals.billable)}
+              {t('dashboard.hero.cache_label')} {Math.round(totals.cacheShare * 100)}%
             </div>
-            {totals.billable === 0 && totals.apiEquivalent > 0 && (
-              <div style={{ fontSize: 12, color: '#8d836b', marginTop: 4 }}>
-                {t('dashboard.hero.covered_by_plan')}
-              </div>
-            )}
           </div>
         </div>
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #efece5', fontSize: 13, color: '#8d836b', lineHeight: 1.5 }}>
@@ -338,7 +345,6 @@ function SessionCard({ session: s }: { session: Session }) {
   const t = useT()
   const stats = [
     { icon: Clock, label: formatDuration(s.durationMs) },
-    { icon: Coins, label: s.billing ? billingValue(s.billing, t) : formatCost(apiEquivalentFor(s)) },
     { icon: Wrench, label: t('session_card.calls', { n: s.toolCallCount }) },
     { icon: FileDiff, label: t('session_card.files', { n: s.changedFileCount }) },
     { icon: Sparkles, label: t('session_card.tokens', { n: formatTokens(s.tokensIn + s.tokensOut) }) },

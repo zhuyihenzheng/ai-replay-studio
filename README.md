@@ -1,9 +1,9 @@
 # AI Replay Studio
 
-> **See what your AI coding agents actually did — and what they really cost.**
+> **See what your AI coding agents actually did — and how many tokens it burned.**
 > Point it at your local Claude Code / Codex transcripts and get a
 > scrubbable session dashboard: timeline replay, a step trace, file diffs,
-> kept artifacts, and an honest cost‑vs‑billable breakdown. 100% local.
+> kept artifacts, and a token & cache‑usage breakdown. 100% local.
 
 <p align="center">
   <a href="https://github.com/zhuyihenzheng/ai-replay-studio/actions"><img alt="CI" src="https://github.com/zhuyihenzheng/ai-replay-studio/actions/workflows/ci.yml/badge.svg" /></a>
@@ -15,7 +15,7 @@
 
 <p align="center">
   <img src="docs/demo.gif" width="900"
-       alt="AI Replay Studio walkthrough: dashboard with API-equivalent vs. out-of-plan spend, the step-proportional Trace timeline, and the cost-vs-billable analysis — all on the bundled fictional demo data." />
+       alt="AI Replay Studio walkthrough: dashboard token + cache-hit summary, the collapsible Trace stage list, and the per-session Usage breakdown — all on the bundled fictional demo data." />
 </p>
 
 Run it locally in ~30 seconds — [**Quick start**](#quick-start). It ships
@@ -30,9 +30,9 @@ your terminal it's effectively gone:
 
 - **What did it actually do?** 60 tool calls flew by; tomorrow you have a
   vague memory and a dirty working tree.
-- **What did it really cost?** Claude Code Pro/Max bills nothing like raw
-  API usage. Most "cost" readouts only show the API list‑price equivalent
-  and quietly let you assume that's what you paid.
+- **What ate my token budget?** Claude Code limits hit fast, and you
+  rarely know *which task* burned the quota — or how much of it was cheap
+  prompt‑cache hits vs. expensive fresh input.
 - **What do I tell the stakeholder?** "Scroll this 200 MB JSONL" is not a
   status update.
 
@@ -40,9 +40,11 @@ AI Replay Studio turns the transcripts your agent **already writes** into
 something you can replay, reason about, and hand off — without sending a
 single byte off your machine.
 
-It is deliberately **not** a billing source of truth. Local logs don't
-contain enough to make that claim, and the UI says so instead of pretending
-otherwise. Honest beats impressive.
+It deliberately shows **tokens, not dollars**. Local logs can't prove what
+your card or subscription was actually charged, and there's no public price
+list for every model — so rather than fabricate a dollar figure, it counts
+tokens (the one thing the logs *do* record precisely) and treats Claude and
+Codex the same. Honest beats impressive.
 
 ---
 
@@ -50,10 +52,10 @@ otherwise. Honest beats impressive.
 
 | View | What it answers |
 |---|---|
-| **Dashboard** | Across sessions: success rate, API‑equivalent value vs. out‑of‑plan spend, saved artifacts. Filter by source, status, and time range (defaults to the last 7 days); search by title. |
+| **Dashboard** | Across sessions: success rate, **total tokens**, **cache‑hit share**, saved artifacts. Filter by source, status, and time range (defaults to the last 7 days); search by title. |
 | **Session replay** | Step-by-step: prompt → tool calls → outputs → retries → final answer. Stage boundaries come from your user‑turns, not the model's self‑narration. |
-| **Trace** | A step‑proportional timeline — each stage's **width = its share of steps**, **color = status** — over a collapsible step list. Routine same‑kind runs auto‑group; failures/retries are flagged. No dollar/token clutter; that lives in **Cost**. |
-| **Cost analysis** | API‑equivalent value, billable estimate, retry waste, cost‑per‑stage, top expensive steps — each card labels its `confidence` so you know when a number is soft. |
+| **Trace** | A collapsible stage list. Each stage row carries a slim **token‑share bar** (length = its share of tokens, colored by status) plus step / token / duration counts; expand a stage to walk its steps. Routine same‑kind runs auto‑group; failures/retries are flagged. Scales cleanly from 3 stages to 300. |
+| **Usage** | Token totals, **token composition** (fresh input / output / cache read / cache write), tokens by stage, cumulative tokens over steps, the most token‑heavy stage, and retry‑wasted tokens. |
 | **File changes** | Every file the agent touched, with a captured diff. |
 | **Artifacts** | Final answers, decisions, code snippets, commands worth keeping. Favoritable. |
 | **Client report** | Hides the raw tool stream and shows the deliverable — for the person who signs off, not the person who debugs. |
@@ -70,33 +72,36 @@ is never translated, only the chrome.
 
 ---
 
-## The cost‑vs‑billable model
+## Token & cache usage
 
-This is the part that makes the project worth running.
+This is the part that makes the project worth running when you're fighting
+a usage limit.
 
-For every session and tool call the importer records **two distinct
-numbers**:
+For every session, stage and tool call the importer records the token
+usage the agent already logged, split into:
 
-- **API‑equivalent value** — the token usage priced at public Anthropic
-  API list rates. Good for comparing models/tasks and reasoning about plan
-  headroom.
-- **Billable estimate** — what should actually hit a bill. Claude Code
-  Pro/Max usage is usually `Included`; after a `You've hit your limit`
-  event with extra‑usage enabled, post‑limit work becomes `Extra usage`;
-  Codex local logs are `Unknown` (tokens are real, dollar attribution is
-  not provable from local logs).
+- **Fresh input** — full‑price input tokens.
+- **Output** — generated tokens.
+- **Cache read (hit)** — prompt‑cache hits. Providers bill these at
+  roughly **1/10** of fresh input, so a high cache share means a much
+  cheaper run for the same amount of work.
+- **Cache write** — 5‑minute / 1‑hour prompt‑cache writes.
 
-Every session carries an `evidence[]` trail and a `confidence` level.
-**No magic numbers.** Configure interpretation before `npm run sync`:
+The **Usage** tab surfaces this composition, tokens by stage, the most
+token‑heavy stage, and how many tokens were wasted on retries; the
+**Trace** tab shows the same proportions inline per stage — so when you
+hit a limit you can see *where* the budget went and which kind of task to
+trim.
 
-| Variable | Values | Purpose |
-|---|---|---|
-| `CLAUDE_REPLAY_BILLING_MODE` | `subscription` · `api` · `extra-usage` · `unknown` | How to read billable spend |
-| `CLAUDE_REPLAY_EXTRA_USAGE` | `true` · `false` · `unknown` | Is post‑limit usage billable |
-| `CLAUDE_REPLAY_PLAN` | free text | Display label (`Pro`, `Max`, `Team`) |
+What it does **not** do, on purpose: it doesn't price anything in dollars,
+doesn't know your remaining Anthropic/ChatGPT quota, and doesn't claim to
+be a bill. It counts tokens from local logs and stops there. Codex and
+Claude are treated identically (no fabricated numbers for models without a
+public rate card).
 
-For exact org accounting, reconcile with the Anthropic Usage and Cost API.
-Details: [docs/billing-model.md](docs/billing-model.md).
+> Note: `scripts/sync-*` still computes a dormant internal billing
+> classification from earlier versions; nothing in the UI reads it. It's
+> on the roadmap to prune.
 
 ---
 
@@ -109,7 +114,8 @@ npm run dev -- --host 127.0.0.1
 ```
 
 A fresh clone ships a built‑in **demo dataset** (fictional sessions across
-Claude Code and Codex) so the dashboard is populated immediately.
+Claude Code and Codex, anchored to "now" so it's never empty) so the
+dashboard is populated immediately.
 
 Use your own real sessions:
 
@@ -128,7 +134,7 @@ files never contain your transcripts.
 | Source | Status | Notes |
 |---|---|---|
 | **Claude Code** | ✅ Supported | Reads `~/.claude/projects/*/*.jsonl` |
-| **Codex** | ✅ Supported | Reads `~/.codex/sessions/**/*.jsonl`. Tokens captured; dollar billing left `Unknown`. |
+| **Codex** | ✅ Supported | Reads `~/.codex/sessions/**/*.jsonl`. Tokens (incl. cache) captured and shown the same as Claude. |
 | **Cursor** | 🛠 Planned | Needs a dedicated importer for Cursor's export format |
 
 ---
@@ -145,15 +151,14 @@ deps. Production JS is a single ~300 KB chunk.
 
 ```text
 scripts/sync-claude-sessions.mjs
-  Reads Claude Code / Codex JSONL, normalizes to the Session shape,
-  classifies billing, writes src/data/claudeSessions.local.json (gitignored).
+  Reads Claude Code / Codex JSONL, normalizes token usage to the Session
+  shape, writes src/data/claudeSessions.local.json (gitignored).
 
-src/types/index.ts        Session, Stage, ToolCall, CostEstimate, Billing…
+src/types/index.ts        Session, Stage, ToolCall, TokenUsage…
 src/store/index.ts        Local synced data → tracked empty stub → demo data
-src/pages/*               dashboard, replay, trace, cost, files, artifacts, report
+src/pages/*               dashboard, replay, trace, usage, files, artifacts, report
 src/components/SessionShell.tsx   shared per-tab frame (one canvas, one width)
 src/i18n/*                EN / 简体中文 / 日本語 + typed t() + locale detect
-src/lib/cost.ts           API-equivalent vs. billable display helpers
 ```
 
 </details>
@@ -165,8 +170,9 @@ src/lib/cost.ts           API-equivalent vs. billable display helpers
 - [ ] Cursor importer
 - [ ] Sanitized export: redact prompts/paths/diffs in place so a session
       can be shared safely
-- [ ] Account-level reconciliation with the Anthropic Usage and Cost API
 - [ ] Streaming view for long-running sessions
+- [ ] Prune the dormant billing classification from `scripts/sync-*` and
+      `src/lib/cost.ts` (no longer used by the UI)
 - [ ] Prune now-unused deps (`reactflow`, `recharts`) from `package.json`
       (already tree-shaken out of the build — housekeeping, not a size fix)
 
@@ -185,9 +191,9 @@ bundled fictional dataset — not your own sessions.
 ## Contributing
 
 Issues and PRs welcome — especially new importers (Cursor, Aider, custom
-agents), pricing-table updates as vendors publish new rates, and better
-cost/trace visualizations. See [CONTRIBUTING.md](CONTRIBUTING.md);
-security issues follow [SECURITY.md](SECURITY.md).
+agents) and better token/usage and trace visualizations. See
+[CONTRIBUTING.md](CONTRIBUTING.md); security issues follow
+[SECURITY.md](SECURITY.md).
 
 ---
 

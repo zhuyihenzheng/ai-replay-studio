@@ -12,7 +12,7 @@ import {
 import { useAppStore } from '@/store'
 import { SessionShell } from '@/components/SessionShell'
 import { EmptyState } from '@/components/EmptyState'
-import { formatCost, formatDuration } from '@/lib/format'
+import { formatDuration, formatTokens } from '@/lib/format'
 import { useT } from '@/i18n'
 import type { Session, ToolCall, ToolCallKind } from '@/types'
 
@@ -368,7 +368,7 @@ function StagesCard({
                   <span style={{ fontSize: 13, fontWeight: 500, color: '#0f0d0a' }}>{st.name}</span>
                 </div>
                 <span style={{ fontSize: 11, color: '#8d836b', whiteSpace: 'nowrap' }}>
-                  {formatDuration(st.durationMs)} · {formatCost(st.costUsd)}
+                  {formatDuration(st.durationMs)}
                 </span>
               </div>
               <p style={{ fontSize: 12, color: '#8d836b', marginTop: 4 }}>{st.summary}</p>
@@ -452,13 +452,17 @@ function InsightsCard({ session }: { session: Session }) {
 
 function CostSnapshotCard({ session }: { session: Session }) {
   const t = useT()
+  const callById = new Map(session.toolCalls.map((c) => [c.id, c]))
+  const tok = (c?: ToolCall) => (c ? (c.tokensIn ?? 0) + (c.tokensOut ?? 0) : 0)
+  const total = session.tokensIn + session.tokensOut
   return (
     <div className="card" style={{ padding: 16 }}>
       <div className="section-label" style={{ marginBottom: 10 }}>
         {t('replay.cost_snapshot')}
       </div>
       {session.stages.map((st) => {
-        const pct = session.costUsd > 0 ? (st.costUsd / session.costUsd) * 100 : 0
+        const stTok = st.toolCallIds.reduce((a, id) => a + tok(callById.get(id)), 0)
+        const pct = total > 0 ? (stTok / total) * 100 : 0
         return (
           <div key={st.id} style={{ marginBottom: 8 }}>
             <div
@@ -470,10 +474,8 @@ function CostSnapshotCard({ session }: { session: Session }) {
               }}
             >
               <span style={{ color: '#5e5644' }}>{st.name}</span>
-              <span
-                style={{ color: '#8d836b', fontVariantNumeric: 'tabular-nums' }}
-              >
-                {formatCost(st.costUsd)}
+              <span style={{ color: '#8d836b', fontVariantNumeric: 'tabular-nums' }}>
+                {t('session_card.tokens', { n: formatTokens(stTok) })}
               </span>
             </div>
             <div style={{ height: 3, background: '#efece5', borderRadius: 2 }}>
@@ -481,7 +483,7 @@ function CostSnapshotCard({ session }: { session: Session }) {
                 style={{
                   height: '100%',
                   width: `${Math.min(100, pct)}%`,
-                  background: '#b25515',
+                  background: '#5e8b6a',
                   borderRadius: 2,
                 }}
               />

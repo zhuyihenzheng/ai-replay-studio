@@ -4,7 +4,7 @@ import { ChevronRight } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { SessionShell, SESSION_MAX_WIDTH, SESSION_GUTTER } from '@/components/SessionShell'
 import { EmptyState } from '@/components/EmptyState'
-import { formatDuration, formatElapsed } from '@/lib/format'
+import { formatDuration, formatElapsed, formatTokens } from '@/lib/format'
 import { useT } from '@/i18n'
 import type { TFunction } from '@/i18n'
 import type { Session, ToolCall, ToolCallKind } from '@/types'
@@ -18,16 +18,6 @@ const STATUS_COLOR: Record<string, string> = {
   retried: '#b5801a',
   skipped: '#94a3b8',
   partial: '#b5801a',
-}
-
-// Faint background wash so a stage's status reads at a glance from the bar
-// without scattered inner bars.
-const STATUS_TINT: Record<string, string> = {
-  success: '#f3f7f4',
-  failed: '#fbeef1',
-  retried: '#fbf5ea',
-  skipped: '#f6f5f1',
-  partial: '#fbf5ea',
 }
 
 const KIND_LABEL_KEY: Record<ToolCallKind, string> = {
@@ -132,7 +122,6 @@ export function ToolGraphPage() {
   const session = useAppStore((s) => s.getSession(id))
   const t = useT()
   const [activeStageId, setActiveStageId] = useState<string | null>(null)
-  const [hoveredStageId, setHoveredStageId] = useState<string | null>(null)
 
   const groups = useMemo(
     () => (session && session.toolCalls.length > 0 ? buildGroups(session) : null),
@@ -178,263 +167,14 @@ export function ToolGraphPage() {
 
   return (
     <SessionShell session={session}>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <SessionBarChart
-          session={session}
-          groups={groups}
-          activeStageId={activeStageId}
-          hoveredStageId={hoveredStageId}
-          onSelectStage={selectStage}
-          onHoverStage={setHoveredStageId}
-          t={t}
-        />
-        <StepList
-          session={session}
-          groups={groups}
-          activeStageId={activeStageId}
-          onSelectStage={selectStage}
-          t={t}
-        />
-      </div>
+      <StepList
+        session={session}
+        groups={groups}
+        activeStageId={activeStageId}
+        onSelectStage={selectStage}
+        t={t}
+      />
     </SessionShell>
-  )
-}
-
-function Legend({ swatch, label }: { swatch: string; label: string }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      <span style={{ width: 8, height: 2, borderRadius: 1, background: swatch }} />
-      {label}
-    </span>
-  )
-}
-
-function SessionBarChart({
-  session,
-  groups,
-  activeStageId,
-  hoveredStageId,
-  onSelectStage,
-  onHoverStage,
-  t,
-}: {
-  session: Session
-  groups: StageGroup[]
-  activeStageId: string | null
-  hoveredStageId: string | null
-  onSelectStage: (id: string | null) => void
-  onHoverStage: (id: string | null) => void
-  t: TFunction
-}) {
-  const detailStage = groups.find((g) => g.id === (hoveredStageId ?? activeStageId))
-
-  return (
-    <div style={{ flexShrink: 0, padding: `${SESSION_GUTTER}px ${SESSION_GUTTER}px 0` }}>
-      <div
-        className="card"
-        style={{
-          maxWidth: SESSION_MAX_WIDTH,
-          margin: '0 auto',
-          width: '100%',
-          padding: '18px 22px',
-        }}
-      >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          marginBottom: 14,
-          gap: 12,
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-          <span className="section-label">{t('graph.session_timeline')}</span>
-          <span style={{ fontSize: 11, color: '#bdb39c' }}>
-            {t('graph.timeline2.steps_in_stages', {
-              steps: session.toolCallCount,
-              stages: session.stages.length || groups.length,
-            })}
-          </span>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-            fontSize: 11,
-            color: '#8d836b',
-            fontFamily: '"JetBrains Mono", monospace',
-          }}
-        >
-          <Legend swatch={STATUS_COLOR.success} label={t('graph.stage_status.success')} />
-          <Legend swatch={STATUS_COLOR.partial} label={t('graph.stage_status.partial')} />
-          <Legend swatch={STATUS_COLOR.failed} label={t('graph.stage_status.failed')} />
-        </div>
-      </div>
-
-      {/* The bar */}
-      <div style={{ position: 'relative', height: 64, display: 'flex', gap: 3 }}>
-        {groups.map((st) => {
-          const isFocused = activeStageId === st.id || hoveredStageId === st.id
-          const statusColor = STATUS_COLOR[st.status] ?? '#94a3b8'
-          // Only label segments wide enough to hold the text without clipping.
-          // Narrow stages stay clean; full detail is in the strip on hover.
-          const showName = st.widthPct >= 0.06
-          const showMeta = st.widthPct >= 0.14
-          return (
-            <button
-              key={st.id}
-              type="button"
-              onClick={() => onSelectStage(activeStageId === st.id ? null : st.id)}
-              onMouseEnter={() => onHoverStage(st.id)}
-              onMouseLeave={() => onHoverStage(null)}
-              aria-label={st.isUnstaged ? t('graph.unstaged_section') : st.name}
-              style={{
-                position: 'relative',
-                flex: st.widthPct,
-                minWidth: 40,
-                padding: 0,
-                background: isFocused ? '#fffdf7' : STATUS_TINT[st.status] ?? '#faf8f3',
-                border: '1px solid',
-                borderColor: isFocused ? '#1a1814' : '#ece8de',
-                borderRadius: 6,
-                cursor: 'pointer',
-                overflow: 'hidden',
-                fontFamily: 'inherit',
-                transition: 'all 0.15s',
-                textAlign: 'left',
-              }}
-            >
-              <div
-                style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: statusColor }}
-              />
-              <div
-                style={{
-                  position: 'relative',
-                  padding: '10px 8px 8px',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: showMeta ? 'space-between' : 'flex-start',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, minWidth: 0 }}>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: isFocused ? '#1a1814' : '#8d836b',
-                      letterSpacing: '0.08em',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {String(st.idx + 1).padStart(2, '0')}
-                  </span>
-                  {showName && (
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: isFocused ? '#0f0d0a' : '#3f3a2d',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {st.isUnstaged ? t('graph.unstaged_section') : st.name}
-                    </span>
-                  )}
-                </div>
-                {showMeta && (
-                  <span
-                    style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: '#8d836b' }}
-                  >
-                    {t('graph.timeline2.n_steps', { n: st.calls.length })}
-                  </span>
-                )}
-              </div>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Active stage detail strip */}
-      <div
-        style={{
-          marginTop: 14,
-          padding: '10px 14px',
-          background: '#faf8f3',
-          borderRadius: 8,
-          border: '1px solid #ece8de',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          minHeight: 48,
-        }}
-      >
-        {detailStage ? (
-          <>
-            <div style={{ flexShrink: 0 }}>
-              <span className="section-label" style={{ fontSize: 9 }}>
-                {t('graph.timeline2.stage_label')} {String(detailStage.idx + 1).padStart(2, '0')}
-              </span>
-              <div
-                style={{
-                  fontFamily: '"Source Serif 4", serif',
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: '#0f0d0a',
-                  marginTop: 1,
-                  maxWidth: 320,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {detailStage.isUnstaged ? t('graph.unstaged_section') : detailStage.name}
-              </div>
-            </div>
-            <div
-              style={{
-                flex: 1,
-                minWidth: 0,
-                fontSize: 12,
-                color: '#5e5644',
-                lineHeight: 1.5,
-                overflow: 'hidden',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-              }}
-            >
-              {realSummary(detailStage.summary)}
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                gap: 16,
-                fontFamily: '"JetBrains Mono", monospace',
-                fontSize: 11,
-                color: '#5e5644',
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ color: '#0f0d0a', fontWeight: 600 }}>
-                {t('graph.timeline2.n_steps', { n: detailStage.calls.length })}
-              </span>
-              <span>
-                <strong style={{ color: '#0f0d0a' }}>{formatDuration(detailStage.durationMs)}</strong>
-              </span>
-            </div>
-          </>
-        ) : (
-          <div style={{ fontSize: 12, color: '#bdb39c' }}>{t('graph.timeline2.hover_hint')}</div>
-        )}
-      </div>
-      </div>
-    </div>
   )
 }
 
@@ -451,6 +191,9 @@ function StepList({
   onSelectStage: (id: string | null) => void
   t: TFunction
 }) {
+  const tok = (c?: ToolCall) => (c ? (c.tokensIn ?? 0) + (c.tokensOut ?? 0) : 0)
+  const stageTok = (g: StageGroup) => g.calls.reduce((a, c) => a + tok(c), 0)
+  const maxStageTok = Math.max(...groups.map(stageTok), 1)
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: `16px ${SESSION_GUTTER}px ${SESSION_GUTTER}px` }}>
       <div
@@ -463,6 +206,8 @@ function StepList({
           const retryCount = stage.calls.filter((c) => retriesOf(c) > 0).length
           const statusColor = STATUS_COLOR[stage.status] ?? '#94a3b8'
           const isLast = i === groups.length - 1
+          const stTok = stageTok(stage)
+          const tokPct = (stTok / maxStageTok) * 100
 
           return (
             <section
@@ -507,6 +252,30 @@ function StepList({
                 >
                   {String(stage.idx + 1).padStart(2, '0')}
                 </span>
+
+                <div
+                  style={{ width: 84, flexShrink: 0, paddingTop: 9 }}
+                  title={t('session_card.tokens', { n: formatTokens(stTok) })}
+                >
+                  <div
+                    style={{
+                      height: 6,
+                      background: '#efece5',
+                      borderRadius: 3,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${Math.max(2, tokPct)}%`,
+                        height: '100%',
+                        background: statusColor,
+                        borderRadius: 3,
+                        opacity: 0.85,
+                      }}
+                    />
+                  </div>
+                </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
@@ -569,12 +338,15 @@ function StepList({
                     alignItems: 'center',
                     flexShrink: 0,
                     paddingTop: 4,
-                    minWidth: 150,
+                    minWidth: 210,
                     justifyContent: 'flex-end',
                   }}
                 >
                   <span style={{ color: '#8d836b' }}>
                     {t('graph.timeline2.n_steps', { n: stage.calls.length })}
+                  </span>
+                  <span style={{ color: '#0f0d0a' }}>
+                    {t('session_card.tokens', { n: formatTokens(stTok) })}
                   </span>
                   <span>{formatDuration(stage.durationMs)}</span>
                   <span

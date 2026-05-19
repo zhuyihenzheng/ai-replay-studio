@@ -1,40 +1,109 @@
 # AI Replay Studio
 
 > **See what your AI coding agents actually did — and what they really cost.**
-> Reads your local Claude Code and Codex transcripts, turns them into a
-> session dashboard with timeline replay, tool graph, file diffs, artifacts,
-> and an honest cost-vs-billable breakdown.
-
-<p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="AI Replay Studio dashboard" width="900" />
-</p>
+> Point it at your local Claude Code / Codex transcripts and get a
+> scrubbable session dashboard: timeline replay, a step trace, file diffs,
+> kept artifacts, and an honest cost‑vs‑billable breakdown. 100% local.
 
 <p align="center">
   <a href="https://github.com/zhuyihenzheng/ai-replay-studio/actions"><img alt="CI" src="https://github.com/zhuyihenzheng/ai-replay-studio/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-1a1814.svg" /></a>
   <img alt="Status" src="https://img.shields.io/badge/status-alpha-b25515.svg" />
+  <img alt="Local-first" src="https://img.shields.io/badge/data-stays%20on%20device-5e8b6a.svg" />
+  <img alt="i18n" src="https://img.shields.io/badge/UI-EN%20%2F%20%E4%B8%AD%E6%96%87%20%2F%20%E6%97%A5%E6%9C%AC%E8%AA%9E-6d28d9.svg" />
 </p>
+
+```text
+┌─ AI Replay Studio ──────────────────────────────────────────────┐
+│  API-equivalent value:  $309.85   →   Out-of-plan spend:  $0     │
+│  ── priced at public API rates ──     ── what you'd be billed ── │
+├──────────────────────────────────────────────────────────────────┤
+│  Replay · Trace · Cost · Files · Artifacts · Client report        │
+│                                                                   │
+│  01 ███████████████  set up project        58 steps   ▸           │
+│  02 ████             investigate failure     9 steps   ▸  ↺2 1f   │
+│  03 ██████████       implement + verify     31 steps   ▸           │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+Run it locally in ~30 seconds — [**Quick start**](#quick-start). It ships
+with a fictional demo dataset so the dashboard is populated on first run.
 
 ---
 
-## Why this exists
+## Why you'd want this
 
-Modern coding agents do a lot of work autonomously — and you usually have
-no good way to look back at it.
+Coding agents do a lot of work autonomously, and the moment it scrolls off
+your terminal it's effectively gone:
 
-- **You don't know what they actually did.** Tool calls scroll past in a
-  terminal. By the next morning the context is gone.
-- **You don't know what they really cost.** Claude Code Pro/Max bills very
-  differently from raw API usage. Most "cost" displays only show the API
-  list-price equivalent and quietly imply you paid that amount.
-- **You can't easily share the work product.** When a stakeholder asks
-  *"what did the agent ship?"*, scrolling a JSONL file isn't an answer.
+- **What did it actually do?** 60 tool calls flew by; tomorrow you have a
+  vague memory and a dirty working tree.
+- **What did it really cost?** Claude Code Pro/Max bills nothing like raw
+  API usage. Most "cost" readouts only show the API list‑price equivalent
+  and quietly let you assume that's what you paid.
+- **What do I tell the stakeholder?** "Scroll this 200 MB JSONL" is not a
+  status update.
 
-AI Replay Studio reads the local transcripts your agent already writes and
-gives you a dashboard you can scrub through, share, and reason about.
+AI Replay Studio turns the transcripts your agent **already writes** into
+something you can replay, reason about, and hand off — without sending a
+single byte off your machine.
 
-It's deliberately **not** a billing source of truth — local logs don't
-contain enough to make that claim — and the UI never pretends otherwise.
+It is deliberately **not** a billing source of truth. Local logs don't
+contain enough to make that claim, and the UI says so instead of pretending
+otherwise. Honest beats impressive.
+
+---
+
+## What's inside
+
+| View | What it answers |
+|---|---|
+| **Dashboard** | Across sessions: success rate, API‑equivalent value vs. out‑of‑plan spend, saved artifacts. Filter by source, status, and time range (defaults to the last 7 days); search by title. |
+| **Session replay** | Step-by-step: prompt → tool calls → outputs → retries → final answer. Stage boundaries come from your user‑turns, not the model's self‑narration. |
+| **Trace** | A step‑proportional timeline — each stage's **width = its share of steps**, **color = status** — over a collapsible step list. Routine same‑kind runs auto‑group; failures/retries are flagged. No dollar/token clutter; that lives in **Cost**. |
+| **Cost analysis** | API‑equivalent value, billable estimate, retry waste, cost‑per‑stage, top expensive steps — each card labels its `confidence` so you know when a number is soft. |
+| **File changes** | Every file the agent touched, with a captured diff. |
+| **Artifacts** | Final answers, decisions, code snippets, commands worth keeping. Favoritable. |
+| **Client report** | Hides the raw tool stream and shows the deliverable — for the person who signs off, not the person who debugs. |
+
+Every tab shares one frame (fixed header + tabs, one canvas, one content
+width), so switching never shifts the layout. UI ships in **English /
+简体中文 / 日本語**, auto‑detected and switchable — your transcript content
+is never translated, only the chrome.
+
+> No screenshots are committed on purpose: the UI moves fast and stale
+> images mislead more than they sell. Run `npm run screenshots` to generate
+> fresh ones locally (it forces the demo dataset, never your real data).
+
+---
+
+## The cost‑vs‑billable model
+
+This is the part that makes the project worth running.
+
+For every session and tool call the importer records **two distinct
+numbers**:
+
+- **API‑equivalent value** — the token usage priced at public Anthropic
+  API list rates. Good for comparing models/tasks and reasoning about plan
+  headroom.
+- **Billable estimate** — what should actually hit a bill. Claude Code
+  Pro/Max usage is usually `Included`; after a `You've hit your limit`
+  event with extra‑usage enabled, post‑limit work becomes `Extra usage`;
+  Codex local logs are `Unknown` (tokens are real, dollar attribution is
+  not provable from local logs).
+
+Every session carries an `evidence[]` trail and a `confidence` level.
+**No magic numbers.** Configure interpretation before `npm run sync`:
+
+| Variable | Values | Purpose |
+|---|---|---|
+| `CLAUDE_REPLAY_BILLING_MODE` | `subscription` · `api` · `extra-usage` · `unknown` | How to read billable spend |
+| `CLAUDE_REPLAY_EXTRA_USAGE` | `true` · `false` · `unknown` | Is post‑limit usage billable |
+| `CLAUDE_REPLAY_PLAN` | free text | Display label (`Pro`, `Max`, `Team`) |
+
+For exact org accounting, reconcile with the Anthropic Usage and Cost API.
+Details: [docs/billing-model.md](docs/billing-model.md).
 
 ---
 
@@ -46,101 +115,18 @@ npm run dev -- --host 127.0.0.1
 # open http://127.0.0.1:5180/
 ```
 
-A fresh clone ships with a built-in **demo dataset** (seven fictional
-sessions across Claude Code, Codex, and a planned Cursor importer) so the
-dashboard is populated immediately.
+A fresh clone ships a built‑in **demo dataset** (fictional sessions across
+Claude Code and Codex) so the dashboard is populated immediately.
 
-To replace the demo data with your own real sessions:
+Use your own real sessions:
 
 ```bash
 npm run sync
 ```
 
-That writes a **gitignored** `src/data/claudeSessions.local.json` derived
-from `~/.claude/projects/**/*.jsonl` and `~/.codex/sessions/**/*.jsonl`.
-Tracked source files never contain your transcripts.
-
----
-
-## What you see
-
-| View | What it answers |
-|---|---|
-| **Dashboard** | Across all sessions: how many succeeded, API-equivalent value vs. out-of-plan spend, saved artifacts. Filter by source, status, and **time range (defaults to the last 7 days)**; search by title. |
-| **Session replay** | Step-by-step: prompt → tool calls → outputs → retries → final answer. Stage boundaries are derived from user-turns, not model self-narration. |
-| **Trace** | A step-proportional timeline: each stage is a segment whose **width = its share of steps** and whose **color = status**, over a collapsible step list. Routine same-kind runs auto-group; failed/retried steps are flagged. Deliberately free of dollar/token clutter — that lives in **Cost**. |
-| **Cost analysis** | API-equivalent value, billable estimate, retry waste, cost-per-stage, top expensive steps. Cards label confidence (`high` / `medium` / `low`) so you know when an estimate is shaky. |
-| **File changes** | Every file the agent touched, with a captured diff. |
-| **Artifacts** | Final answers, decisions, code snippets, commands worth keeping. Supports favorites. |
-| **Client report** | A view that hides raw tool calls and shows the deliverable — for stakeholders, not engineers. |
-
-Every session tab shares one frame (fixed header + tabs, one canvas, one
-content width), so switching tabs doesn't shift the layout. The interface
-is available in **English, 简体中文, and 日本語** — auto-detected from the
-browser and switchable in the sidebar. Your transcript content is never
-translated, only the UI chrome.
-
-<details>
-<summary><b>📸 Screenshot gallery</b> (click to expand)</summary>
-
-<br />
-
-**Session replay** — the timeline + the step you're inspecting + execution stages.
-<img src="docs/screenshots/session-replay.png" alt="Session replay" width="900" />
-
-**Cost analysis** — API-equivalent vs. billable, including a session that hit the Claude Code subscription limit and continued via extra usage.
-<img src="docs/screenshots/cost-analysis.png" alt="Cost analysis" width="900" />
-
-**Trace** — a step-proportional bar (stage width = share of steps, color = status) over a collapsible, auto-grouping step list.
-<img src="docs/screenshots/tool-graph.png" alt="Trace" width="900" />
-
-**File changes** — every file the agent touched.
-<img src="docs/screenshots/file-changes.png" alt="File changes" width="900" />
-
-**Artifacts** — keepable outputs (code, decisions, final answers, commands).
-<img src="docs/screenshots/artifacts.png" alt="Artifacts" width="900" />
-
-**Client report** — a stakeholder-friendly view that hides the raw tool stream.
-<img src="docs/screenshots/client-report.png" alt="Client report" width="900" />
-
-> All screenshots are captured from the bundled demo dataset.
-> `npm run screenshots` regenerates them; the script forces `VITE_FORCE_DEMO=1`
-> so it can never include your real synced transcripts. They may lag the
-> latest UI tweaks until regenerated.
-
-</details>
-
----
-
-## The cost-vs-billable model
-
-This is the part that makes the project useful.
-
-For every session and tool call, the importer records two distinct numbers:
-
-- **API-equivalent value** — what the token usage would cost at public
-  Anthropic API list prices. Helpful for comparing models, comparing tasks,
-  and reasoning about plan headroom.
-- **Billable estimate** — what should actually appear on a bill. For Claude
-  Code Pro/Max usage, this is usually `Included`. After a `You've hit your
-  limit` event with extra-usage enabled, post-limit work is classified as
-  `Extra usage`. For Codex local logs, billing is `Unknown` — token usage
-  is real but local logs don't prove the dollar attribution.
-
-Each session carries an `evidence[]` array explaining how it was classified
-and a `confidence` level. **No magic numbers.**
-
-Configure how your usage should be interpreted via env vars before
-`npm run sync`:
-
-| Variable | Values | Purpose |
-|---|---|---|
-| `CLAUDE_REPLAY_BILLING_MODE` | `subscription`, `api`, `extra-usage`, `unknown` | How to interpret billable spend |
-| `CLAUDE_REPLAY_EXTRA_USAGE` | `true`, `false`, `unknown` | Whether usage after a Claude limit event is billable |
-| `CLAUDE_REPLAY_PLAN` | free text | Display label like `Pro`, `Max`, `Team` |
-
-For exact team/org accounting, reconcile with the Anthropic Usage and Cost
-API or the Claude Code Analytics API. Details: [docs/billing-model.md](docs/billing-model.md).
+That writes a **gitignored** `src/data/claudeSessions.local.json` from
+`~/.claude/projects/**/*.jsonl` and `~/.codex/sessions/**/*.jsonl`. Tracked
+files never contain your transcripts.
 
 ---
 
@@ -149,89 +135,66 @@ API or the Claude Code Analytics API. Details: [docs/billing-model.md](docs/bill
 | Source | Status | Notes |
 |---|---|---|
 | **Claude Code** | ✅ Supported | Reads `~/.claude/projects/*/*.jsonl` |
-| **Codex** | ✅ Supported | Reads `~/.codex/sessions/**/*.jsonl`. Token usage is captured; dollar billing is left as `Unknown`. |
-| **Cursor** | 🛠 Planned | Needs a dedicated importer for Cursor's log/export format |
+| **Codex** | ✅ Supported | Reads `~/.codex/sessions/**/*.jsonl`. Tokens captured; dollar billing left `Unknown`. |
+| **Cursor** | 🛠 Planned | Needs a dedicated importer for Cursor's export format |
 
 ---
 
 ## Tech stack
 
-Vite · React 18 · TypeScript · Zustand · Tailwind CSS · React Router · Lucide.
+Vite · React 18 · TypeScript · Zustand · Tailwind CSS · React Router ·
+Lucide. Charts and the trace timeline are hand‑rolled SVG/CSS — no
+charting library. The importer is plain Node ESM: no build step, no native
+deps. Production JS is a single ~300 KB chunk.
 
-Charts and the trace timeline are hand-rolled SVG/CSS — no charting
-library. (`reactflow` and `recharts` are still in `package.json` from an
-earlier design but are no longer used; see Roadmap.)
-
-The importer is plain Node ESM — no build step, no native dependencies.
-
----
-
-## Architecture
+<details>
+<summary><b>Architecture</b> (click to expand)</summary>
 
 ```text
 scripts/sync-claude-sessions.mjs
-  Reads Claude Code and Codex JSONL transcripts, normalizes them to the
-  Session shape, classifies billing, and writes
-  src/data/claudeSessions.local.json (gitignored).
+  Reads Claude Code / Codex JSONL, normalizes to the Session shape,
+  classifies billing, writes src/data/claudeSessions.local.json (gitignored).
 
-src/types/index.ts
-  Shared types: Session, Stage, ToolCall, TokenUsage, CostEstimate,
-  BillingBreakdown, Artifact.
-
-src/store/index.ts
-  Loads local synced data when present; falls back to a tracked empty
-  stub; falls back again to the bundled demo dataset.
-
-src/pages/*
-  Dashboard, replay, graph (Trace), cost, files, artifacts, client report.
-
-src/components/SessionShell.tsx
-  Shared per-tab frame (fixed header + tabs, one canvas, one content
-  width) so every session tab is laid out consistently.
-
-src/i18n/*
-  English / 简体中文 / 日本語 dictionaries + a tiny typed t() helper
-  with browser-locale detection.
-
-src/lib/cost.ts
-  UI helpers for API-equivalent vs. billable display.
+src/types/index.ts        Session, Stage, ToolCall, CostEstimate, Billing…
+src/store/index.ts        Local synced data → tracked empty stub → demo data
+src/pages/*               dashboard, replay, trace, cost, files, artifacts, report
+src/components/SessionShell.tsx   shared per-tab frame (one canvas, one width)
+src/i18n/*                EN / 简体中文 / 日本語 + typed t() + locale detect
+src/lib/cost.ts           API-equivalent vs. billable display helpers
 ```
+
+</details>
 
 ---
 
 ## Roadmap
 
 - [ ] Cursor importer
-- [ ] Sanitized export: redact prompts/paths/diffs in-place so a session
+- [ ] Sanitized export: redact prompts/paths/diffs in place so a session
       can be shared safely
 - [ ] Account-level reconciliation with the Anthropic Usage and Cost API
 - [ ] Streaming view for long-running sessions
 - [ ] Prune now-unused deps (`reactflow`, `recharts`) from `package.json`
-      — they're already tree-shaken out of the build (production JS is a
-      single ~300 KB chunk), so this is housekeeping, not a size fix
-
----
-
-## Contributing
-
-Issues and PRs are welcome — especially:
-
-- New importers (Cursor, Aider, custom agent transcripts).
-- Pricing-table updates as Anthropic / OpenAI publish new model rates.
-- Better visualizations for the tool graph and cost analysis.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: please follow
-[SECURITY.md](SECURITY.md).
+      (already tree-shaken out of the build — housekeeping, not a size fix)
 
 ---
 
 ## Privacy
 
 Local transcripts can contain prompts, file paths, commands, diffs, and
-tool outputs. The sync script writes these to `claudeSessions.local.json`,
-which is gitignored. The tracked stub at `src/data/claudeSessions.json`
-stays as `[]`. **Never commit your synced data.** If you fork this project
-and want to share screenshots or videos, use the bundled demo dataset.
+tool outputs. `npm run sync` writes them to `claudeSessions.local.json`,
+which is **gitignored**; the tracked stub `src/data/claudeSessions.json`
+stays `[]`. **Never commit your synced data.** To share a demo, use the
+bundled fictional dataset — not your own sessions.
+
+---
+
+## Contributing
+
+Issues and PRs welcome — especially new importers (Cursor, Aider, custom
+agents), pricing-table updates as vendors publish new rates, and better
+cost/trace visualizations. See [CONTRIBUTING.md](CONTRIBUTING.md);
+security issues follow [SECURITY.md](SECURITY.md).
 
 ---
 

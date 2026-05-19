@@ -13,18 +13,10 @@
   <img alt="i18n" src="https://img.shields.io/badge/UI-EN%20%2F%20%E4%B8%AD%E6%96%87%20%2F%20%E6%97%A5%E6%9C%AC%E8%AA%9E-6d28d9.svg" />
 </p>
 
-```text
-┌─ AI Replay Studio ──────────────────────────────────────────────┐
-│  API-equivalent value:  $309.85   →   Out-of-plan spend:  $0     │
-│  ── priced at public API rates ──     ── what you'd be billed ── │
-├──────────────────────────────────────────────────────────────────┤
-│  Replay · Trace · Cost · Files · Artifacts · Client report        │
-│                                                                   │
-│  01 ███████████████  set up project        58 steps   ▸           │
-│  02 ████             investigate failure     9 steps   ▸  ↺2 1f   │
-│  03 ██████████       implement + verify     31 steps   ▸           │
-└──────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="docs/demo.gif" width="900"
+       alt="AI Replay Studio walkthrough: dashboard with API-equivalent vs. out-of-plan spend, the step-proportional Trace timeline, and the cost-vs-billable analysis — all on the bundled fictional demo data." />
+</p>
 
 Run it locally in ~30 seconds — [**Quick start**](#quick-start). It ships
 with a fictional demo dataset so the dashboard is populated on first run.
@@ -71,9 +63,10 @@ width), so switching never shifts the layout. UI ships in **English /
 简体中文 / 日本語**, auto‑detected and switchable — your transcript content
 is never translated, only the chrome.
 
-> No screenshots are committed on purpose: the UI moves fast and stale
-> images mislead more than they sell. Run `npm run screenshots` to generate
-> fresh ones locally (it forces the demo dataset, never your real data).
+> The demo above is recorded entirely on the **bundled fictional dataset**
+> — never real transcripts. Static per-tab screenshots aren't committed
+> (the UI moves fast and stale images mislead); `npm run screenshots`
+> regenerates them locally on the same demo data if you want stills.
 
 ---
 

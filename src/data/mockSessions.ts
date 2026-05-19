@@ -21,6 +21,12 @@ import type {
 
 const minute = 60_000
 const second = 1_000
+const hour = 60 * minute
+
+// Demo sessions are anchored relative to "now" so a fresh clone always
+// shows recent, non-empty data — including under the dashboard's default
+// "last 7 days" filter. Order/spacing preserved (s6 newest … s7 oldest).
+const now = Date.now()
 
 function buildMiniTimeline(seed: number, length = 24): number[] {
   const arr: number[] = []
@@ -155,7 +161,7 @@ function enrich(session: Session, spec: BillingSpec): Session {
 }
 
 // ---------- Session 1: Claude Code, success, subscription-included ----------
-const s1Start = new Date('2026-04-25T09:14:00Z').getTime()
+const s1Start = now - 44 * hour
 
 const s1Tools: ToolCall[] = [
   { id: 't1-0', kind: 'input', title: 'User prompt received', status: 'success', startedAt: s1Start, endedAt: s1Start + 2 * second, durationMs: 2 * second, tokensIn: 412, tokensOut: 0, costUsd: 0.001, detail: 'Add CSV export to /api/sessions endpoint with filters' },
@@ -244,7 +250,7 @@ const session1: Session = enrich({
 }, { mode: 'subscription', planName: 'Max' })
 
 // ---------- Session 2: Cursor (planned source), partial / retried ----------
-const s2Start = new Date('2026-04-25T15:02:00Z').getTime()
+const s2Start = now - 38 * hour
 
 const s2Tools: ToolCall[] = [
   { id: 't2-0', kind: 'input', title: 'User prompt received', status: 'success', startedAt: s2Start, endedAt: s2Start + 1 * second, durationMs: 1 * second, tokensIn: 220, costUsd: 0.0006, detail: 'Migrate users table to add email_verified_at' },
@@ -326,7 +332,7 @@ const session2: Session = enrich({
 }, { mode: 'api', planName: 'Cursor', evidence: ['Cursor importer is planned; demo session priced as API usage.'] })
 
 // ---------- Session 3: Codex, failed, billing unknown -----------------------
-const s3Start = new Date('2026-04-26T01:48:00Z').getTime()
+const s3Start = now - 26 * hour
 
 const s3Tools: ToolCall[] = [
   { id: 't3-0', kind: 'input', title: 'User prompt received', status: 'success', startedAt: s3Start, endedAt: s3Start + 1 * second, durationMs: 1 * second, tokensIn: 320, costUsd: 0.0008, detail: 'Refactor billing module to use new Stripe SDK' },
@@ -407,7 +413,7 @@ const session3: Session = enrich({
 })
 
 // ---------- Session 4: Claude Code, success (fast) --------------------------
-const s4Start = new Date('2026-04-24T11:30:00Z').getTime()
+const s4Start = now - 80 * hour
 
 const s4Tools: ToolCall[] = [
   { id: 't4-0', kind: 'input', title: 'User prompt received', status: 'success', startedAt: s4Start, endedAt: s4Start + 1 * second, durationMs: 1 * second, tokensIn: 180, costUsd: 0.0005, detail: 'Fix typo "recieve" -> "receive" project-wide' },
@@ -466,7 +472,7 @@ const session4: Session = enrich({
 }, { mode: 'subscription', planName: 'Pro' })
 
 // ---------- Session 5: Cursor (planned), currently running ------------------
-const s5Start = new Date('2026-04-26T05:55:00Z').getTime()
+const s5Start = now - 18 * hour
 
 const s5Tools: ToolCall[] = [
   { id: 't5-0', kind: 'input', title: 'User prompt received', status: 'success', startedAt: s5Start, endedAt: s5Start + 1 * second, durationMs: 1 * second, tokensIn: 410, costUsd: 0.001, detail: 'Generate React components from Figma design' },
@@ -524,7 +530,7 @@ const session5: Session = enrich({
 }, { mode: 'api', planName: 'Cursor' })
 
 // ---------- Session 6: Claude Code, hit subscription limit, mixed billing ---
-const s6Start = new Date('2026-04-26T19:10:00Z').getTime()
+const s6Start = now - 5 * hour
 const s6LimitAt = s6Start + 380 * second
 
 const s6Tools: ToolCall[] = [
@@ -619,7 +625,7 @@ const session6: Session = enrich({
 })
 
 // ---------- Session 7: Codex, integration test run, billing unknown ---------
-const s7Start = new Date('2026-04-23T07:20:00Z').getTime()
+const s7Start = now - 120 * hour
 
 const s7Tools: ToolCall[] = [
   { id: 't7-0', kind: 'input', title: 'User prompt received', status: 'success', startedAt: s7Start, endedAt: s7Start + 1 * second, durationMs: 1 * second, tokensIn: 240, costUsd: 0.0006, detail: 'Run the integration suite against staging and triage failures' },

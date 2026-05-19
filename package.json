@@ -1,0 +1,56 @@
+{
+  "name": "ai-replay-studio",
+  "version": "0.1.0",
+  "description": "Visual replay for AI coding-agent sessions. Turns local Claude Code and Codex transcripts into a session dashboard with timeline replay, tool graph, file diffs, artifacts, and cost vs. billable analysis.",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/zhuyihenzheng/ai-replay-studio#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhuyihenzheng/ai-replay-studio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zhuyihenzheng/ai-replay-studio/issues"
+  },
+  "keywords": [
+    "claude-code",
+    "codex",
+    "ai-agents",
+    "agent-replay",
+    "observability",
+    "dashboard",
+    "tool-calls",
+    "transcripts",
+    "developer-tools",
+    "react",
+    "vite",
+    "anthropic"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "sync": "node scripts/sync-claude-sessions.mjs",
+    "screenshots": "node scripts/capture-screenshots.mjs",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "^0.460.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "reactflow": "^11.11.4",
+    "recharts": "^2.13.0",
+    "zustand": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}

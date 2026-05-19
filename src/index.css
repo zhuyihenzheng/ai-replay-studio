@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-ink-50 text-ink-800 font-sans antialiased;
+    font-size: 14px;
+    line-height: 1.5;
+    /* Long unbreakable tokens (file paths, URLs) must wrap instead of
+       overflowing their box. Inherited, so this covers every display box;
+       only kicks in when a word would otherwise overflow. */
+    overflow-wrap: anywhere;
+  }
+  pre,
+  code {
+    @apply font-mono;
+    font-size: 12px;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #dcd6c8;
+    border-radius: 3px;
+  }
+}
+
+@layer components {
+  .card {
+    background: white;
+    border: 1px solid #efece5;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  }
+  .card-hover {
+    transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s;
+  }
+  .card-hover:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: #dcd6c8;
+    transform: translateY(-1px);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    border-radius: 8px;
+    border: 1px solid #dcd6c8;
+    background: white;
+    color: #3f3a2d;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    background: #f8f7f4;
+    border-color: #bdb39c;
+  }
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    border-radius: 8px;
+    border: none;
+    background: #1a1814;
+    color: white;
+    cursor: pointer;
+    transition: background 0.12s;
+    white-space: nowrap;
+  }
+  .btn-primary:hover {
+    background: #2a2620;
+  }
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: #5e5644;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .btn-ghost:hover {
+    background: #f8f7f4;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 9999px;
+    letter-spacing: 0.01em;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8d836b;
+  }
+  .graph-tooltip {
+    position: absolute;
+    background: white;
+    border: 1px solid #efece5;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    pointer-events: none;
+    z-index: 100;
+  }
+  .diff-add {
+    background: rgba(16, 185, 129, 0.08);
+    color: #065f46;
+  }
+  .diff-del {
+    background: rgba(239, 68, 68, 0.08);
+    color: #9f1239;
+  }
+  .diff-hunk {
+    color: #8d836b;
+  }
+}
+
+@layer utilities {
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+  .animate-pulse-dot {
+    animation: pulse-dot 1.5s infinite;
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .fade-in {
+    animation: fade-in 0.2s ease-out;
+  }
+}

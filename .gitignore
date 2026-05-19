@@ -1,0 +1,27 @@
+# Build output
+node_modules
+dist
+.vite
+tsconfig.tsbuildinfo
+
+# OS / editor
+.DS_Store
+
+# Local environment
+.env
+.env.local
+*.local
+
+# Local Claude Code working dir (per-user settings, not project config)
+.claude/
+
+# Real session data synced from local agent transcripts.
+# Contains private prompts, paths, commands, diffs, and tool outputs.
+# NEVER commit. The tracked stub at src/data/claudeSessions.json stays as `[]`.
+src/data/claudeSessions.local.json
+src/data/codexSessions.local.json
+
+# Editor cruft
+*.swp
+*.swo
+*.code-workspace

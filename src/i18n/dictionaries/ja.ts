@@ -174,6 +174,18 @@ export const ja: EnglishDictionary = {
     extra_value: '追加 {value}',
     api_value: 'API {value}',
     unknown_value: '不明 {value}',
+    token_mix: {
+      title: 'トークン構成',
+      caption: 'キャッシュ命中は新規入力の約1/10。上限はここで消費されます。',
+      fresh_input: '新規入力',
+      output: '出力',
+      cache_read: 'キャッシュ命中(読取)',
+      cache_write_5m: 'キャッシュ書込 · 5分',
+      cache_write_1h: 'キャッシュ書込 · 1時間',
+      mult: '入力単価 ×{m}',
+      output_rate: '出力単価',
+      none: 'このセッションのトークン内訳は記録されていません。',
+    },
   },
   badges: {
     status: {

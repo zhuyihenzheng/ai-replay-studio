@@ -171,6 +171,18 @@ export const en = {
     extra_value: '{value} extra',
     api_value: '{value} API',
     unknown_value: '{value} unknown',
+    token_mix: {
+      title: 'Token composition',
+      caption: 'Cache hits cost ~10% of fresh input — this is where your limit actually goes.',
+      fresh_input: 'Fresh input',
+      output: 'Output',
+      cache_read: 'Cache hit (read)',
+      cache_write_5m: 'Cache write · 5 min',
+      cache_write_1h: 'Cache write · 1 h',
+      mult: '×{m} input rate',
+      output_rate: 'output rate',
+      none: 'No token breakdown recorded for this session.',
+    },
   },
   badges: {
     status: {

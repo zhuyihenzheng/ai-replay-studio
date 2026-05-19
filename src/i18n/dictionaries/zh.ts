@@ -171,6 +171,18 @@ export const zh: EnglishDictionary = {
     extra_value: '{value} 额外用量',
     api_value: '{value} API',
     unknown_value: '{value} 未知',
+    token_mix: {
+      title: 'Token 构成',
+      caption: 'Cache 命中只按全新输入价的约 1/10 计 —— 额度其实花在这里。',
+      fresh_input: '全新输入 (fresh)',
+      output: '输出',
+      cache_read: 'Cache 命中(读取)',
+      cache_write_5m: 'Cache 写入 · 5 分',
+      cache_write_1h: 'Cache 写入 · 1 时',
+      mult: '输入价 ×{m}',
+      output_rate: '输出价',
+      none: '此会话未记录 token 明细。',
+    },
   },
   badges: {
     status: {

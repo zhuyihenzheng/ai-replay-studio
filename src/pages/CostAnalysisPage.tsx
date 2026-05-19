@@ -83,6 +83,18 @@ export function CostAnalysisPage() {
 
   const mostExpensive = [...session.stages].sort((a, b) => apiEquivalentFor(b) - apiEquivalentFor(a))[0]
   const totalTokens = session.tokensIn + session.tokensOut
+
+  const u = session.usage
+  const tokenMix = u
+    ? [
+        { key: 'fresh_input', n: u.inputTokens, mult: 1 as number | null, color: '#8d836b' },
+        { key: 'output', n: u.outputTokens, mult: null as number | null, color: '#5e5644' },
+        { key: 'cache_read', n: u.cacheReadTokens, mult: 0.1 as number | null, color: '#5e8b6a' },
+        { key: 'cache_write_5m', n: u.cacheWrite5mTokens, mult: 1.25 as number | null, color: '#b25515' },
+        { key: 'cache_write_1h', n: u.cacheWrite1hTokens, mult: 2 as number | null, color: '#a83352' },
+      ].filter((r) => r.n > 0)
+    : []
+  const tokenMixTotal = tokenMix.reduce((a, r) => a + r.n, 0)
   const billing = session.billing
   const sessionApiEquivalent = apiEquivalentFor(session)
   const sessionBillable = billableFor(session)
@@ -169,6 +181,87 @@ export function CostAnalysisPage() {
               {c.sub && <div style={{ fontSize: 11, color: '#8d836b' }}>{c.sub}</div>}
             </div>
           ))}
+        </div>
+
+        <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+          <div className="section-label" style={{ marginBottom: 4 }}>
+            {t('cost.token_mix.title')}
+          </div>
+          <div style={{ fontSize: 12, color: '#8d836b', marginBottom: 14, lineHeight: 1.5 }}>
+            {t('cost.token_mix.caption')}
+          </div>
+          {tokenMixTotal === 0 ? (
+            <div style={{ fontSize: 13, color: '#8d836b' }}>{t('cost.token_mix.none')}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {tokenMix.map((r) => {
+                const pct = (r.n / tokenMixTotal) * 100
+                return (
+                  <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 156, flexShrink: 0, fontSize: 12, color: '#3f3a2d' }}>
+                      {t(`cost.token_mix.${r.key}`)}
+                    </div>
+                    <div
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        height: 8,
+                        background: '#efece5',
+                        borderRadius: 4,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.max(pct, 1)}%`,
+                          height: '100%',
+                          background: r.color,
+                          borderRadius: 4,
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        width: 88,
+                        flexShrink: 0,
+                        textAlign: 'right',
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontSize: 12,
+                        color: '#0f0d0a',
+                      }}
+                    >
+                      {formatTokens(r.n)}
+                    </div>
+                    <div
+                      style={{
+                        width: 40,
+                        flexShrink: 0,
+                        textAlign: 'right',
+                        fontSize: 11,
+                        color: '#8d836b',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      {Math.round(pct)}%
+                    </div>
+                    <div
+                      style={{
+                        width: 116,
+                        flexShrink: 0,
+                        textAlign: 'right',
+                        fontSize: 11,
+                        color: r.mult != null && r.mult < 1 ? '#5e8b6a' : '#8d836b',
+                      }}
+                    >
+                      {r.mult == null
+                        ? t('cost.token_mix.output_rate')
+                        : t('cost.token_mix.mult', { m: r.mult })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         <div

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useAppStore } from '@/store'
 import { SessionShell, SessionDoc } from '@/components/SessionShell'
 import { EmptyState } from '@/components/EmptyState'
@@ -370,8 +370,26 @@ export function CostAnalysisPage() {
               const cost = apiEquivalentFor(tc)
               const pct = (cost / breakdownMax) * 100
               const isFailed = tc.status === 'failed'
+              const toks = (tc.tokensIn ?? 0) + (tc.tokensOut ?? 0)
               return (
-                <div key={tc.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Link
+                  key={tc.id}
+                  to={`/sessions/${session.id}/graph?call=${tc.id}`}
+                  title={`${tc.title} — open in Trace`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    borderRadius: 6,
+                    padding: '5px 6px',
+                    margin: '0 -6px',
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#faf8f3')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
                   <div
                     style={{
                       width: 200,
@@ -382,7 +400,6 @@ export function CostAnalysisPage() {
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
                     }}
-                    title={tc.title}
                   >
                     {tc.title}
                   </div>
@@ -407,6 +424,18 @@ export function CostAnalysisPage() {
                   </div>
                   <div
                     style={{
+                      width: 82,
+                      textAlign: 'right',
+                      fontSize: 11,
+                      color: '#8d836b',
+                      fontVariantNumeric: 'tabular-nums',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {toks > 0 ? t('session_card.tokens', { n: formatTokens(toks) }) : '—'}
+                  </div>
+                  <div
+                    style={{
                       width: 64,
                       textAlign: 'right',
                       fontSize: 11,
@@ -422,7 +451,7 @@ export function CostAnalysisPage() {
                       {t('cost.failed')}
                     </span>
                   )}
-                </div>
+                </Link>
               )
             })}
             {breakdown.restCount > 0 && (

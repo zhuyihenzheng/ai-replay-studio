@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { SessionShell, SESSION_MAX_WIDTH, SESSION_GUTTER } from '@/components/SessionShell'
@@ -149,6 +149,23 @@ export function ToolGraphPage() {
       }, 0)
     }
   }, [])
+
+  // Deep link from the Cost page's "top expensive steps": ?call=<id>
+  // opens and scrolls to the stage containing that step.
+  const [searchParams] = useSearchParams()
+  useEffect(() => {
+    const callId = searchParams.get('call')
+    if (!callId || !groups) return
+    const g = groups.find((grp) => grp.calls.some((c) => c.id === callId))
+    if (!g) return
+    setActiveStageId(g.id)
+    const timer = setTimeout(() => {
+      document
+        .getElementById(`stage-${g.id}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
+    return () => clearTimeout(timer)
+  }, [searchParams, groups])
 
   if (!session) return <EmptyState title={t('graph.empty_session_not_found')} />
   if (!groups) {

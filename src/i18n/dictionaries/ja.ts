@@ -130,6 +130,8 @@ export const ja: EnglishDictionary = {
       hide: '折りたたむ',
       failed_pill: '失敗',
       tokens_short: '{n} tok',
+      same_round_tooltip:
+        '同じ LLM ラウンド — Claude Code はトークン消費を message 単位で記録するため、このラウンドの最初の tool に集計済み。',
     },
   },
   cost: {

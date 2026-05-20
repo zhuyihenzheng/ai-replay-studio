@@ -127,6 +127,8 @@ export const zh: EnglishDictionary = {
       hide: '收起',
       failed_pill: '失败',
       tokens_short: '{n} tok',
+      same_round_tooltip:
+        '同一轮 LLM 调用 — Claude Code 把 token 用量挂在 message 上，不是单个 tool_use；本轮的 cost 已记到这一轮的第一个 tool 上。',
     },
   },
   cost: {

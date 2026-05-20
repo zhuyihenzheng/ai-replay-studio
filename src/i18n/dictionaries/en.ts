@@ -127,6 +127,8 @@ export const en = {
       hide: 'hide',
       failed_pill: 'FAILED',
       tokens_short: '{n} tok',
+      same_round_tooltip:
+        'Same LLM round — Claude Code reports tokens per message, not per tool_use. The cost was recorded on the first tool of this round.',
     },
   },
   cost: {

@@ -32,9 +32,83 @@ const KIND_LABEL_KEY: Record<ToolCallKind, string> = {
 
 const IMPORTANT_KINDS: ToolCallKind[] = ['input', 'output', 'analysis']
 
+// Composition palette matches CostAnalysisPage so users learn one color set.
+// Order matters — segments are drawn left-to-right in this order so the eye
+// reads "real work" (warm grays) → "free reuse" (green) → "expensive churn"
+// (orange/red).
+const TOKEN_SEG = [
+  { key: 'fresh', labelKey: 'cost.token_mix.fresh_input', color: '#8d836b' },
+  { key: 'output', labelKey: 'cost.token_mix.output', color: '#5e5644' },
+  { key: 'cacheRead', labelKey: 'cost.token_mix.cache_read', color: '#5e8b6a' },
+  { key: 'cw5', labelKey: 'cost.token_mix.cache_write_5m', color: '#b25515' },
+  { key: 'cw1', labelKey: 'cost.token_mix.cache_write_1h', color: '#a83352' },
+] as const
+
+interface Composition {
+  fresh: number
+  output: number
+  cacheRead: number
+  cw5: number
+  cw1: number
+  total: number
+}
+
+function compositionOf(calls: ToolCall[]): Composition {
+  let fresh = 0, output = 0, cacheRead = 0, cw5 = 0, cw1 = 0
+  for (const c of calls) {
+    const u = c.usage
+    if (!u) continue
+    fresh += u.inputTokens
+    output += u.outputTokens
+    cacheRead += u.cacheReadTokens
+    cw5 += u.cacheWrite5mTokens
+    cw1 += u.cacheWrite1hTokens
+  }
+  return { fresh, output, cacheRead, cw5, cw1, total: fresh + output + cacheRead + cw5 + cw1 }
+}
+
 function retriesOf(call: ToolCall): number {
   if (call.status === 'retried') return Math.max(1, call.retries ?? 1)
   return call.retries ?? 0
+}
+
+function totalTok(call: ToolCall): number {
+  return (call.tokensIn ?? 0) + (call.tokensOut ?? 0)
+}
+
+// Claude Code JSONL reports `usage` per assistant message, not per tool_use.
+// When a message contains multiple tool_use blocks, the sync script attributes
+// the full cost to the first one; same-round siblings end up at 0. Show that
+// fact in the tooltip rather than hiding it.
+function tokenTooltip(call: ToolCall, t: TFunction): string {
+  const total = totalTok(call)
+  if (total === 0) {
+    if (call.kind === 'input') return ''
+    return t('graph.timeline2.same_round_tooltip')
+  }
+  const u = call.usage
+  if (!u) return ''
+  return formatBreakdown(
+    [u.inputTokens, u.outputTokens, u.cacheReadTokens, u.cacheWrite5mTokens, u.cacheWrite1hTokens],
+    t,
+  )
+}
+
+function formatBreakdown(
+  [inT, outT, cr, cw5, cw1]: [number, number, number, number, number],
+  t: TFunction,
+): string {
+  const rows: Array<[string, number]> = [
+    [t('graph.tokens.input'), inT],
+    [t('graph.tokens.output'), outT],
+    [t('graph.tokens.cache_read'), cr],
+    [t('graph.tokens.cache_write_5m'), cw5],
+    [t('graph.tokens.cache_write_1h'), cw1],
+  ]
+  return rows
+    .filter(([, n]) => n > 0)
+    .map(([label, n]) => `${label}: ${formatTokens(n)}`)
+    .join('\n')
 }
 
 // The sync script fills empty summaries with a "N steps, M failed." placeholder.
@@ -191,8 +265,7 @@ function StepList({
   onSelectStage: (id: string | null) => void
   t: TFunction
 }) {
-  const tok = (c?: ToolCall) => (c ? (c.tokensIn ?? 0) + (c.tokensOut ?? 0) : 0)
-  const stageTok = (g: StageGroup) => g.calls.reduce((a, c) => a + tok(c), 0)
+  const stageTok = (g: StageGroup) => g.calls.reduce((a, c) => a + totalTok(c), 0)
   const maxStageTok = Math.max(...groups.map(stageTok), 1)
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: `16px ${SESSION_GUTTER}px ${SESSION_GUTTER}px` }}>
@@ -208,6 +281,7 @@ function StepList({
           const isLast = i === groups.length - 1
           const stTok = stageTok(stage)
           const tokPct = (stTok / maxStageTok) * 100
+          const comp = compositionOf(stage.calls)
 
           return (
             <section
@@ -253,27 +327,43 @@ function StepList({
                   {String(stage.idx + 1).padStart(2, '0')}
                 </span>
 
-                <div
-                  style={{ width: 84, flexShrink: 0, paddingTop: 9 }}
-                  title={t('session_card.tokens', { n: formatTokens(stTok) })}
-                >
+                <div style={{ width: 84, flexShrink: 0, paddingTop: 9 }}>
                   <div
                     style={{
-                      height: 6,
+                      position: 'relative',
+                      height: 8,
                       background: '#efece5',
-                      borderRadius: 3,
+                      borderRadius: 4,
                       overflow: 'hidden',
                     }}
                   >
                     <div
                       style={{
-                        width: `${Math.max(2, tokPct)}%`,
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
                         height: '100%',
-                        background: statusColor,
-                        borderRadius: 3,
-                        opacity: 0.85,
+                        width: `${Math.max(2, tokPct)}%`,
+                        display: 'flex',
                       }}
-                    />
+                    >
+                      {comp.total > 0
+                        ? TOKEN_SEG.map((s) => {
+                            const n = comp[s.key]
+                            if (n === 0) return null
+                            return (
+                              <div
+                                key={s.key}
+                                style={{ width: `${(n / comp.total) * 100}%`, background: s.color }}
+                              />
+                            )
+                          })
+                        : (
+                          <div
+                            style={{ width: '100%', height: '100%', background: statusColor, opacity: 0.85 }}
+                          />
+                        )}
+                    </div>
                   </div>
                 </div>
 
@@ -370,10 +460,75 @@ function StepList({
 
               {isActive && (
                 <div style={{ marginTop: 18, animation: 'fade-in 0.2s ease-out' }}>
+                  <CompositionLegend comp={comp} t={t} />
                   <StageSteps stage={stage} session={session} t={t} />
                 </div>
               )}
             </section>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function CompositionLegend({ comp, t }: { comp: Composition; t: TFunction }) {
+  if (comp.total === 0) return null
+  const items = TOKEN_SEG.map((s) => ({
+    key: s.key,
+    label: t(s.labelKey),
+    color: s.color,
+    n: comp[s.key],
+  })).filter((r) => r.n > 0)
+
+  return (
+    <div style={{ paddingLeft: 56, marginBottom: 14 }}>
+      <div
+        style={{
+          display: 'flex',
+          height: 10,
+          borderRadius: 5,
+          overflow: 'hidden',
+          marginBottom: 10,
+          background: '#efece5',
+        }}
+      >
+        {items.map((it) => (
+          <div
+            key={it.key}
+            title={`${it.label}: ${formatTokens(it.n)}`}
+            style={{ width: `${(it.n / comp.total) * 100}%`, background: it.color }}
+          />
+        ))}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '6px 16px',
+          fontSize: 11,
+          fontFamily: '"JetBrains Mono", monospace',
+          color: '#5e5644',
+        }}
+      >
+        {items.map((it) => {
+          const pct = (it.n / comp.total) * 100
+          const pctStr = pct < 0.1 ? '<0.1%' : `${pct.toFixed(pct < 10 ? 1 : 0)}%`
+          return (
+            <span key={it.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: 2,
+                  background: it.color,
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ color: '#0f0d0a' }}>{it.label}</span>
+              <span>{formatTokens(it.n)}</span>
+              <span style={{ color: '#8d836b' }}>({pctStr})</span>
+            </span>
           )
         })}
       </div>
@@ -563,12 +718,33 @@ function StepRow({ call, session, t }: { call: ToolCall; session: Session; t: TF
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-end',
-          minWidth: 80,
+          minWidth: 96,
           paddingTop: 3,
           flexShrink: 0,
+          gap: 2,
         }}
       >
-        <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: '#5e5644' }}>
+        {(() => {
+          const total = totalTok(call)
+          if (total === 0 && call.kind === 'input') return null
+          const tooltip = tokenTooltip(call, t)
+          return (
+            <span
+              title={tooltip}
+              style={{
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 11,
+                color: total > 0 ? '#0f0d0a' : '#bdb39c',
+                cursor: tooltip ? 'help' : 'default',
+              }}
+            >
+              {total > 0
+                ? t('graph.timeline2.tokens_short', { n: formatTokens(total) })
+                : '—'}
+            </span>
+          )
+        })()}
+        <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: '#8d836b' }}>
           {formatDuration(call.durationMs)}
         </span>
       </div>
@@ -591,6 +767,7 @@ function GroupedRow({
 }) {
   const calls = group.calls
   const totalDur = calls.reduce((a, c) => a + c.durationMs, 0)
+  const totalGroupTok = calls.reduce((a, c) => a + totalTok(c), 0)
 
   return (
     <div style={{ marginBottom: 2 }}>
@@ -663,9 +840,21 @@ function GroupedRow({
           </span>
         </div>
         <div
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 80, flexShrink: 0 }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            minWidth: 96,
+            flexShrink: 0,
+            gap: 2,
+          }}
         >
-          <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: '#5e5644' }}>
+          {totalGroupTok > 0 && (
+            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: '#0f0d0a' }}>
+              {t('graph.timeline2.tokens_short', { n: formatTokens(totalGroupTok) })}
+            </span>
+          )}
+          <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: '#8d836b' }}>
             {formatDuration(totalDur)}
           </span>
         </div>
@@ -717,6 +906,23 @@ function GroupedRow({
               >
                 {c.title}
               </span>
+              {(() => {
+                const total = totalTok(c)
+                if (total === 0) return null
+                return (
+                  <span
+                    title={tokenTooltip(c, t)}
+                    style={{
+                      fontFamily: '"JetBrains Mono", monospace',
+                      fontSize: 10,
+                      color: '#5e5644',
+                      cursor: 'help',
+                    }}
+                  >
+                    {t('graph.timeline2.tokens_short', { n: formatTokens(total) })}
+                  </span>
+                )
+              })()}
               <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 10, color: '#bdb39c' }}>
                 {formatDuration(c.durationMs)}
               </span>

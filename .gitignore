@@ -12,8 +12,12 @@ tsconfig.tsbuildinfo
 .env.local
 *.local
 
-# Local Claude Code working dir (per-user settings, not project config)
-.claude/
+# Claude Code: ignore per-user local working dir, but keep shared project
+# config (settings.json + hooks) tracked so SessionStart runs for every session.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+.claude/settings.local.json
 
 # Real session data synced from local agent transcripts.
 # Contains private prompts, paths, commands, diffs, and tool outputs.

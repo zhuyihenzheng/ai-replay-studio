@@ -894,18 +894,44 @@ function GroupedRow({
                   flexShrink: 0,
                 }}
               />
-              <span
+              <div
                 style={{
                   flex: 1,
                   color: '#3f3a2d',
                   minWidth: 0,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
                 }}
               >
-                {c.title}
-              </span>
+                <div
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {c.title}
+                </div>
+                {/* Grouped command/file rows still need detail so Trace does not hide the actual invocation/output. */}
+                {c.detail && c.detail.trim() && (
+                  <pre
+                    style={{
+                      margin: '5px 0 0',
+                      padding: '6px 8px',
+                      maxHeight: 180,
+                      overflow: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      fontFamily: '"JetBrains Mono", monospace',
+                      fontSize: 10,
+                      lineHeight: 1.45,
+                      color: '#5e5644',
+                      background: '#faf8f2',
+                      border: '1px solid #ece8de',
+                      borderRadius: 5,
+                    }}
+                  >
+                    {c.detail}
+                  </pre>
+                )}
+              </div>
               {(() => {
                 const total = totalTok(c)
                 if (total === 0) return null

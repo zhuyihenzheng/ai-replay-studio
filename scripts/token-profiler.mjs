@@ -50,6 +50,8 @@ function parseArgs(argv) {
     top: 10,
     format: 'pretty', // pretty | json | md
     all: false,
+    export: null, // path to write profiles JSON for the web dashboard
+    lang: detectLang(),
     color: process.stdout.isTTY && !process.env.NO_COLOR,
   }
   for (let i = 0; i < argv.length; i++) {
@@ -90,9 +92,34 @@ function parseArgs(argv) {
       case '--all':
         args.all = true
         break
+      case '--export': {
+        const next = argv[i + 1]
+        if (next && !next.startsWith('-')) {
+          args.export = next
+          i++
+        } else {
+          args.export = path.join(
+            path.dirname(new URL(import.meta.url).pathname),
+            '..',
+            'src',
+            'data',
+            'tokenProfiles.local.json',
+          )
+        }
+        break
+      }
       case '--no-color':
         args.color = false
         break
+      case '--lang': {
+        const v = String(argv[++i] || '').toLowerCase()
+        if (!['en', 'zh', 'ja'].includes(v)) {
+          console.error(`Unsupported --lang "${v}" (supported: en, zh, ja)`)
+          process.exit(2)
+        }
+        args.lang = v
+        break
+      }
       case '-h':
       case '--help':
         printHelp()
@@ -128,10 +155,369 @@ Options:
   --last <n>         Only the <n> most recent sessions
   --top <n>          Rows in "top" lists (default 10)
   --all              Print a detailed report for every matched session
+  --export [file]    Also write profiles JSON for the web dashboard
+                     (default: src/data/tokenProfiles.local.json, gitignored)
   --json             Machine-readable JSON output
   --md, --markdown   Markdown report output
+  --lang <code>      Report language: en, zh, ja (default: from $LANG)
   --no-color         Disable ANSI colors
   -h, --help         Show this help`)
+}
+
+// ---------------------------------------------------------------------------
+// Localization — report strings in en / zh / ja
+// ---------------------------------------------------------------------------
+
+const STRINGS = {
+  en: {
+    report_title: 'TOKEN PROFILE',
+    pricing: 'pricing {v}',
+    unknown_model: 'unknown model',
+    totals: 'TOTALS',
+    api_calls: 'API calls',
+    in_subagents: '({n} in subagents)',
+    user_turns: 'User turns',
+    tool_calls: 'Tool calls',
+    n_failed: '{n} failed',
+    fresh_input: 'Fresh input',
+    of_input_side: '{pct} of input side',
+    cache_write: 'Cache write',
+    cache_write_split: '5m {a} / 1h {b}',
+    cache_read: 'Cache read',
+    hit_rate: 'hit rate {pct}',
+    output: 'Output',
+    peak_context: 'Peak context',
+    peak_context_note: 'input+cache of largest call',
+    est_cost: 'Est. API cost',
+    est_cost_note: 'list-price equivalent',
+    context_growth: 'CONTEXT GROWTH',
+    context_growth_note: '(input+cache per call)',
+    peak: 'peak {n}',
+    compacts_hint: '{n} compact(s) detected — see COMPACTS below',
+    per_turn: 'PER-TURN BREAKDOWN',
+    h_turn: 'turn',
+    h_prompt: 'prompt',
+    h_tools: 'tools',
+    h_fresh: 'fresh',
+    h_cache_w: 'cache-w',
+    h_cache_r: 'cache-r',
+    h_out: 'out',
+    h_results: 'results*',
+    h_cost: 'cost',
+    h_share: 'share',
+    results_footnote: '*results = est. tokens injected into context by tool results (chars/4)',
+    phase_breakdown: 'PHASE BREAKDOWN',
+    phase_breakdown_note: '(explore / edit / execute / test / …)',
+    h_phase: 'phase',
+    h_tool_calls: 'tool calls',
+    h_result_tokens: 'result tokens*',
+    h_output_tokens: 'output tokens',
+    phase_explore: 'explore',
+    phase_edit: 'edit',
+    phase_execute: 'execute',
+    phase_test: 'test',
+    phase_subagent: 'subagent',
+    phase_mcp: 'mcp',
+    phase_other: 'other',
+    phase_respond: 'respond',
+    waste_signals: 'WASTE SIGNALS',
+    repeated_reads: 'Repeated file reads',
+    wasted_suffix: ' — est. {n} wasted',
+    no_repeats: 'No file was read more than once. ✓',
+    repeated_commands: 'Repeated identical commands',
+    repeated_greps: 'Repeated identical greps',
+    failed_calls: 'Failed tool calls ({n})',
+    top_consumers: 'Top context consumers',
+    top_consumers_note: ' (largest tool results)',
+    h_reads: 'reads',
+    h_file: 'file',
+    h_total_est: 'total est',
+    h_wasted_est: 'wasted est',
+    h_est_tokens: 'est tokens',
+    h_tool_call: 'tool call',
+    turn_n: 'turn {n}',
+    turns_list: 'turns {list}',
+    compacts: 'COMPACTS',
+    inferred: ' (inferred from context drop)',
+    context_drop: ' — context {pre} → {post} (dropped ~{d})',
+    summary_kept: 'summary kept ~{n} est. tokens',
+    lost_reread: 'lost & re-read afterwards (~{n} est. tokens):',
+    none_reread: 'nothing previously read was re-read afterwards ✓',
+    gaps: 'CACHE-EXPIRY GAPS',
+    gaps_note: '  (pauses >5m; the next call re-writes the cache)',
+    gap_line: '{time} after a {gap} pause — re-wrote ~{n} cache tokens',
+    recommendations: 'RECOMMENDATIONS',
+    overview_title: 'TOKEN PROFILER · {n} session(s)',
+    h_session: 'session',
+    h_project: 'project',
+    h_started: 'started',
+    h_title: 'title',
+    h_turns: 'turns',
+    h_hit: 'hit%',
+    h_rewaste: 'rewaste*',
+    h_cmp: 'cmp',
+    h_est_cost: 'est cost',
+    total_row: 'TOTAL',
+    overview_footnote: '  *rewaste = est. tokens wasted on repeated file reads · cmp = compacts',
+    leaderboard: 'MOST RE-READ FILES ACROSS SESSIONS',
+    n_sessions: '{n} session(s)',
+    deepdive_hint: 'Run with --session <id> for the per-turn / phase / compact deep-dive.',
+    md_metric: 'metric',
+    md_value: 'value',
+    md_note: 'note',
+    rec_repeated_reads:
+      'Repeated file reads cost ~{tokens} est. tokens (top: {file} ×{count}). Read with offset/limit, or summarize stable files in CLAUDE.md so they are not re-read each turn.',
+    rec_low_cache_hit:
+      'Cache hit rate is {rate} — most input tokens were paid at full/write price. Long pauses (>5 min) and frequent system-prompt changes invalidate the cache.',
+    rec_expiry_gaps:
+      '{n} pause(s) longer than 5 minutes likely expired the prompt cache; the following calls re-wrote ~{tokens} cache tokens at 1.25–2× input price.',
+    rec_huge_results:
+      '{n} tool result(s) over ~15k est. tokens (largest: {label}, ~{tokens}). Use Read offset/limit, Grep head_limit, or delegate bulk exploration to a subagent that returns only conclusions.',
+    rec_failed_calls:
+      '{n} tool calls failed; each failure still pays for its context and a retry. Check the failed-calls list for permission errors or repeated bad paths.',
+    rec_compact_reread:
+      'After the {trigger} compact, {n} file(s) had to be re-read (~{tokens} est. tokens). Consider /compact at a natural milestone yourself, after which fewer files are still needed.',
+    rec_subagent:
+      'Subagents consumed ~{tokens} input-side and {output} output tokens in {calls} calls — this kept the main context smaller (good); it is included in cost totals.',
+  },
+  zh: {
+    report_title: 'TOKEN 剖析',
+    pricing: '价格表 {v}',
+    unknown_model: '未知模型',
+    totals: '总量',
+    api_calls: 'API 调用',
+    in_subagents: '（子代理 {n} 次）',
+    user_turns: '用户轮次',
+    tool_calls: '工具调用',
+    n_failed: '{n} 次失败',
+    fresh_input: '新输入',
+    of_input_side: '占输入侧 {pct}',
+    cache_write: '缓存写入',
+    cache_write_split: '5分钟 {a} / 1小时 {b}',
+    cache_read: '缓存读取',
+    hit_rate: '命中率 {pct}',
+    output: '输出',
+    peak_context: '上下文峰值',
+    peak_context_note: '最大一次调用的输入+缓存',
+    est_cost: 'API 等价成本',
+    est_cost_note: '按牌价折算',
+    context_growth: '上下文增长',
+    context_growth_note: '（每次调用的输入+缓存）',
+    peak: '峰值 {n}',
+    compacts_hint: '检测到 {n} 次 compact — 见下方 COMPACT 部分',
+    per_turn: '逐轮分布',
+    h_turn: '轮次',
+    h_prompt: '提示词',
+    h_tools: '工具',
+    h_fresh: '新输入',
+    h_cache_w: '缓存写',
+    h_cache_r: '缓存读',
+    h_out: '输出',
+    h_results: '结果*',
+    h_cost: '成本',
+    h_share: '占比',
+    results_footnote: '*结果 = 工具结果注入上下文的估算 token 数（按 4 字符/token）',
+    phase_breakdown: '阶段分布',
+    phase_breakdown_note: '（探索 / 编辑 / 执行 / 测试 / …）',
+    h_phase: '阶段',
+    h_tool_calls: '工具调用',
+    h_result_tokens: '结果 token*',
+    h_output_tokens: '输出 token',
+    phase_explore: '探索',
+    phase_edit: '编辑',
+    phase_execute: '执行',
+    phase_test: '测试',
+    phase_subagent: '子代理',
+    phase_mcp: 'mcp',
+    phase_other: '其他',
+    phase_respond: '回复',
+    waste_signals: '浪费信号',
+    repeated_reads: '重复读取的文件',
+    wasted_suffix: ' — 估算浪费 {n}',
+    no_repeats: '没有文件被读取超过一次。✓',
+    repeated_commands: '重复执行的相同命令',
+    repeated_greps: '重复执行的相同 grep',
+    failed_calls: '失败的工具调用（{n}）',
+    top_consumers: '上下文消耗排行',
+    top_consumers_note: '（最大的工具结果）',
+    h_reads: '次数',
+    h_file: '文件',
+    h_total_est: '总计(估)',
+    h_wasted_est: '浪费(估)',
+    h_est_tokens: '估算token',
+    h_tool_call: '工具调用',
+    turn_n: '第{n}轮',
+    turns_list: '轮次 {list}',
+    compacts: 'COMPACT',
+    inferred: '（由上下文骤降推断）',
+    context_drop: ' — 上下文 {pre} → {post}（丢弃约 {d}）',
+    summary_kept: '摘要保留约 {n} 估算 token',
+    lost_reread: '丢失并在之后重读（约 {n} 估算 token）：',
+    none_reread: '之前读过的内容没有被重读 ✓',
+    gaps: '缓存过期间隙',
+    gaps_note: '（超过 5 分钟的停顿；之后的调用会重写缓存）',
+    gap_line: '{time} 停顿 {gap} 后 — 重写了约 {n} 缓存 token',
+    recommendations: '优化建议',
+    overview_title: 'TOKEN 剖析 · {n} 个会话',
+    h_session: '会话',
+    h_project: '项目',
+    h_started: '开始时间',
+    h_title: '标题',
+    h_turns: '轮次',
+    h_hit: '命中%',
+    h_rewaste: '重读浪费*',
+    h_cmp: 'cmp',
+    h_est_cost: '估算成本',
+    total_row: '合计',
+    overview_footnote: '  *重读浪费 = 重复读文件浪费的估算 token · cmp = compact 次数',
+    leaderboard: '跨会话最常被重读的文件',
+    n_sessions: '{n} 个会话',
+    deepdive_hint: '用 --session <id> 查看逐轮 / 阶段 / compact 详细报告。',
+    md_metric: '指标',
+    md_value: '数值',
+    md_note: '说明',
+    rec_repeated_reads:
+      '重复读文件花费约 {tokens} 估算 token（最多：{file} ×{count}）。可以用 offset/limit 局部读取，或把稳定文件的要点写进 CLAUDE.md，避免每轮重读。',
+    rec_low_cache_hit:
+      '缓存命中率只有 {rate} — 大部分输入按全价/写入价付费。超过 5 分钟的停顿和频繁变化的系统提示都会让缓存失效。',
+    rec_expiry_gaps:
+      '{n} 次超过 5 分钟的停顿可能导致提示缓存过期；之后的调用以 1.25–2× 输入价重写了约 {tokens} 缓存 token。',
+    rec_huge_results:
+      '{n} 个工具结果超过约 1.5 万估算 token（最大：{label}，约 {tokens}）。建议用 Read 的 offset/limit、Grep 的 head_limit，或把批量探索交给只返回结论的子代理。',
+    rec_failed_calls:
+      '{n} 次工具调用失败；每次失败仍要为其上下文和重试付费。检查失败列表中是否有权限错误或反复出错的路径。',
+    rec_compact_reread:
+      '{trigger} compact 之后有 {n} 个文件被迫重读（约 {tokens} 估算 token）。可以在自然的里程碑处主动 /compact，此时还需要的文件更少。',
+    rec_subagent:
+      '子代理在 {calls} 次调用中消耗了约 {tokens} 输入侧 token 和 {output} 输出 token — 这让主上下文更小（是好事）；已计入成本总额。',
+  },
+  ja: {
+    report_title: 'トークンプロファイル',
+    pricing: '料金表 {v}',
+    unknown_model: '不明なモデル',
+    totals: '合計',
+    api_calls: 'API 呼び出し',
+    in_subagents: '（サブエージェント {n} 回）',
+    user_turns: 'ユーザーターン',
+    tool_calls: 'ツール呼び出し',
+    n_failed: '{n} 件失敗',
+    fresh_input: '新規入力',
+    of_input_side: '入力側の {pct}',
+    cache_write: 'キャッシュ書き込み',
+    cache_write_split: '5分 {a} / 1時間 {b}',
+    cache_read: 'キャッシュ読み取り',
+    hit_rate: 'ヒット率 {pct}',
+    output: '出力',
+    peak_context: 'コンテキスト最大値',
+    peak_context_note: '最大の呼び出しの入力+キャッシュ',
+    est_cost: 'API 換算コスト',
+    est_cost_note: '定価換算',
+    context_growth: 'コンテキストの推移',
+    context_growth_note: '（呼び出しごとの入力+キャッシュ）',
+    peak: '最大 {n}',
+    compacts_hint: '{n} 回の compact を検出 — 下の COMPACT セクションを参照',
+    per_turn: 'ターン別内訳',
+    h_turn: 'ターン',
+    h_prompt: 'プロンプト',
+    h_tools: 'ツール',
+    h_fresh: '新規',
+    h_cache_w: 'キャッシュ書',
+    h_cache_r: 'キャッシュ読',
+    h_out: '出力',
+    h_results: '結果*',
+    h_cost: 'コスト',
+    h_share: '割合',
+    results_footnote: '*結果 = ツール結果がコンテキストへ注入した推定トークン数（4 文字/トークン）',
+    phase_breakdown: 'フェーズ別内訳',
+    phase_breakdown_note: '（探索 / 編集 / 実行 / テスト / …）',
+    h_phase: 'フェーズ',
+    h_tool_calls: 'ツール呼出',
+    h_result_tokens: '結果トークン*',
+    h_output_tokens: '出力トークン',
+    phase_explore: '探索',
+    phase_edit: '編集',
+    phase_execute: '実行',
+    phase_test: 'テスト',
+    phase_subagent: 'サブエージェント',
+    phase_mcp: 'mcp',
+    phase_other: 'その他',
+    phase_respond: '応答',
+    waste_signals: '無駄のシグナル',
+    repeated_reads: '重複して読まれたファイル',
+    wasted_suffix: ' — 推定 {n} の無駄',
+    no_repeats: '複数回読まれたファイルはありません。✓',
+    repeated_commands: '同一コマンドの繰り返し',
+    repeated_greps: '同一 grep の繰り返し',
+    failed_calls: '失敗したツール呼び出し（{n}）',
+    top_consumers: 'コンテキスト消費ランキング',
+    top_consumers_note: '（最大のツール結果）',
+    h_reads: '回数',
+    h_file: 'ファイル',
+    h_total_est: '合計(推定)',
+    h_wasted_est: '無駄(推定)',
+    h_est_tokens: '推定トークン',
+    h_tool_call: 'ツール呼び出し',
+    turn_n: 'ターン{n}',
+    turns_list: 'ターン {list}',
+    compacts: 'COMPACT',
+    inferred: '（コンテキスト急落から推定）',
+    context_drop: ' — コンテキスト {pre} → {post}（約 {d} を破棄）',
+    summary_kept: '要約は約 {n} 推定トークンを保持',
+    lost_reread: '失われて後で再読み込み（約 {n} 推定トークン）：',
+    none_reread: '以前読んだものの再読み込みはありませんでした ✓',
+    gaps: 'キャッシュ失効ギャップ',
+    gaps_note: '（5 分超の停止。直後の呼び出しがキャッシュを書き直します）',
+    gap_line: '{time} {gap} の停止後 — 約 {n} のキャッシュトークンを書き直し',
+    recommendations: '改善提案',
+    overview_title: 'トークンプロファイラ · {n} セッション',
+    h_session: 'セッション',
+    h_project: 'プロジェクト',
+    h_started: '開始',
+    h_title: 'タイトル',
+    h_turns: 'ターン',
+    h_hit: 'ヒット%',
+    h_rewaste: '再読無駄*',
+    h_cmp: 'cmp',
+    h_est_cost: '推定コスト',
+    total_row: '合計',
+    overview_footnote: '  *再読無駄 = ファイル重複読み込みの推定無駄トークン · cmp = compact 回数',
+    leaderboard: 'セッション横断で最も再読されたファイル',
+    n_sessions: '{n} セッション',
+    deepdive_hint: '--session <id> でターン別 / フェーズ / compact の詳細を表示。',
+    md_metric: '指標',
+    md_value: '値',
+    md_note: '備考',
+    rec_repeated_reads:
+      'ファイルの重複読み込みに約 {tokens} 推定トークン（最多：{file} ×{count}）。offset/limit で部分読みするか、安定したファイルの要点を CLAUDE.md にまとめると毎ターンの再読を防げます。',
+    rec_low_cache_hit:
+      'キャッシュヒット率が {rate} です — 入力トークンの大半をフル/書き込み価格で支払っています。5 分超の停止や頻繁なシステムプロンプト変更はキャッシュを無効化します。',
+    rec_expiry_gaps:
+      '5 分超の停止が {n} 回あり、プロンプトキャッシュが失効した可能性があります。直後の呼び出しは約 {tokens} のキャッシュトークンを入力単価の 1.25–2 倍で書き直しました。',
+    rec_huge_results:
+      '約 1.5 万推定トークンを超えるツール結果が {n} 件（最大：{label}、約 {tokens}）。Read の offset/limit、Grep の head_limit、または結論のみ返すサブエージェントへの委譲を検討してください。',
+    rec_failed_calls:
+      '{n} 件のツール呼び出しが失敗。失敗してもコンテキストと再試行の分は支払いが発生します。失敗一覧で権限エラーや繰り返しの誤パスを確認してください。',
+    rec_compact_reread:
+      '{trigger} compact の後、{n} 個のファイルの再読み込みが必要でした（約 {tokens} 推定トークン）。区切りの良いタイミングで自分から /compact すると、その時点で必要なファイルが少なくて済みます。',
+    rec_subagent:
+      'サブエージェントは {calls} 回の呼び出しで入力側約 {tokens}・出力 {output} トークンを消費 — メインコンテキストを小さく保てています（良いこと）。コスト合計には含まれています。',
+  },
+}
+
+let LANG = 'en'
+
+function detectLang() {
+  const env =
+    process.env.TOKEN_PROFILER_LANG || process.env.LC_ALL || process.env.LANG || ''
+  if (/^zh/i.test(env)) return 'zh'
+  if (/^ja/i.test(env)) return 'ja'
+  return 'en'
+}
+
+function tr(key, params) {
+  const s = STRINGS[LANG]?.[key] ?? STRINGS.en[key] ?? key
+  if (!params) return s
+  return s.replace(/\{(\w+)\}/g, (m, name) => (params[name] == null ? m : String(params[name])))
 }
 
 // ---------------------------------------------------------------------------
@@ -643,55 +1029,49 @@ function profileTranscript(filePath, projectFolder) {
   }
 
   // -- recommendations ------------------------------------------------------------
+  // Structured as { id, params, text } so the web dashboard can re-render
+  // them in its own locale; text is rendered in the CLI's --lang.
   const recommendations = []
+  const recommend = (id, params) => recommendations.push({ id, params, text: tr(`rec_${id}`, params) })
   const repeatWaste = repeatedReads.reduce((a, r) => a + r.wastedEstTokens, 0)
   if (repeatWaste > 4000) {
     const top = repeatedReads[0]
-    recommendations.push(
-      `Repeated file reads cost ~${fmtTokens(repeatWaste)} est. tokens (top: ${top.key} ×${top.count}). ` +
-        'Read with offset/limit, or summarize stable files in CLAUDE.md so they are not re-read each turn.',
-    )
+    recommend('repeated_reads', { tokens: fmtTokens(repeatWaste), file: top.key, count: top.count })
   }
   if (mainCalls.length >= 10 && cacheHitRate < 0.5) {
-    recommendations.push(
-      `Cache hit rate is ${(cacheHitRate * 100).toFixed(1)}% — most input tokens were paid at full/write price. ` +
-        'Long pauses (>5 min) and frequent system-prompt changes invalidate the cache.',
-    )
+    recommend('low_cache_hit', { rate: (cacheHitRate * 100).toFixed(1) + '%' })
   }
   if (expiryGaps.length > 0) {
     const rewrite = expiryGaps.reduce((a, g) => a + g.rewriteTokens, 0)
-    recommendations.push(
-      `${expiryGaps.length} pause(s) longer than 5 minutes likely expired the prompt cache; ` +
-        `the following calls re-wrote ~${fmtTokens(rewrite)} cache tokens at 1.25–2× input price.`,
-    )
+    recommend('expiry_gaps', { n: expiryGaps.length, tokens: fmtTokens(rewrite) })
   }
   const hugeResults = topResults.filter((r) => r.resultEstTokens > 15000)
   if (hugeResults.length > 0) {
-    recommendations.push(
-      `${hugeResults.length} tool result(s) over ~15k est. tokens (largest: ${hugeResults[0].label}, ~${fmtTokens(hugeResults[0].resultEstTokens)}). ` +
-        'Use Read offset/limit, Grep head_limit, or delegate bulk exploration to a subagent that returns only conclusions.',
-    )
+    recommend('huge_results', {
+      n: hugeResults.length,
+      label: hugeResults[0].label,
+      tokens: fmtTokens(hugeResults[0].resultEstTokens),
+    })
   }
   if (failedCalls.length >= 3) {
-    recommendations.push(
-      `${failedCalls.length} tool calls failed; each failure still pays for its context and a retry. ` +
-        'Check the failed-calls list for permission errors or repeated bad paths.',
-    )
+    recommend('failed_calls', { n: failedCalls.length })
   }
   for (const k of allCompacts) {
     if ((k.reReadEstTokens ?? 0) > 3000) {
-      recommendations.push(
-        `After the ${k.trigger} compact, ${k.reReadFiles.length} file(s) had to be re-read (~${fmtTokens(k.reReadEstTokens)} est. tokens). ` +
-          'Consider /compact at a natural milestone yourself, after which fewer files are still needed.',
-      )
+      recommend('compact_reread', {
+        trigger: k.trigger,
+        n: k.reReadFiles.length,
+        tokens: fmtTokens(k.reReadEstTokens),
+      })
     }
   }
   if (sideTotals.output + sideTotals.input + sideTotals.cacheRead > 0) {
     const sideCtx = sideTotals.input + sideTotals.cacheRead + sideTotals.cacheWrite5m + sideTotals.cacheWrite1h
-    recommendations.push(
-      `Subagents consumed ~${fmtTokens(sideCtx)} input-side and ${fmtTokens(sideTotals.output)} output tokens in ${sidechainCalls} calls — ` +
-        'this kept the main context smaller (good); it is included in cost totals.',
-    )
+    recommend('subagent', {
+      tokens: fmtTokens(sideCtx),
+      output: fmtTokens(sideTotals.output),
+      calls: sidechainCalls,
+    })
   }
 
   return {
@@ -860,30 +1240,30 @@ function renderSessionPretty(p, opts) {
   const inputSide = g.input + g.cacheRead + cacheWrite
 
   out.push(
-    c.bold(`TOKEN PROFILE · ${p.sessionId.slice(0, 8)} · ${p.project}`),
+    c.bold(`${tr('report_title')} · ${p.sessionId.slice(0, 8)} · ${p.project}`),
   )
   out.push(
     c.dim(
       `"${p.title}" · ${fmtTime(p.startedAt)} → ${fmtTime(p.endedAt)} (${fmtDuration(p.durationMs)}) · ` +
-        `${p.models.map((m) => m.model).join(', ') || 'unknown model'} · pricing ${p.pricingVersion}`,
+        `${p.models.map((m) => m.model).join(', ') || tr('unknown_model')} · ${tr('pricing', { v: p.pricingVersion })}`,
     ),
   )
   out.push('')
 
   // Totals
-  out.push(c.bold('TOTALS'))
+  out.push(c.bold(tr('totals')))
   out.push(
     table(
       [
-        ['API calls', fmtInt(p.counts.apiCalls), `(${p.counts.sidechainApiCalls} in subagents)`],
-        ['User turns', fmtInt(p.counts.turns), ''],
-        ['Tool calls', fmtInt(p.counts.toolCalls), p.counts.failedToolCalls ? c.red(`${p.counts.failedToolCalls} failed`) : ''],
-        ['Fresh input', fmtInt(g.input), c.dim(inputSide ? fmtPct(g.input / inputSide) + ' of input side' : '')],
-        ['Cache write', fmtInt(cacheWrite), c.dim(`5m ${fmtTokens(g.cacheWrite5m)} / 1h ${fmtTokens(g.cacheWrite1h)}`)],
-        ['Cache read', fmtInt(g.cacheRead), c.green(`hit rate ${fmtPct(p.totals.cacheHitRate)}`)],
-        ['Output', fmtInt(g.output), ''],
-        ['Peak context', fmtInt(p.totals.peakContext), c.dim('input+cache of largest call')],
-        ['Est. API cost', fmtCost(p.totals.estCostUsd), c.dim('list-price equivalent')],
+        [tr('api_calls'), fmtInt(p.counts.apiCalls), tr('in_subagents', { n: p.counts.sidechainApiCalls })],
+        [tr('user_turns'), fmtInt(p.counts.turns), ''],
+        [tr('tool_calls'), fmtInt(p.counts.toolCalls), p.counts.failedToolCalls ? c.red(tr('n_failed', { n: p.counts.failedToolCalls })) : ''],
+        [tr('fresh_input'), fmtInt(g.input), c.dim(inputSide ? tr('of_input_side', { pct: fmtPct(g.input / inputSide) }) : '')],
+        [tr('cache_write'), fmtInt(cacheWrite), c.dim(tr('cache_write_split', { a: fmtTokens(g.cacheWrite5m), b: fmtTokens(g.cacheWrite1h) }))],
+        [tr('cache_read'), fmtInt(g.cacheRead), c.green(tr('hit_rate', { pct: fmtPct(p.totals.cacheHitRate) }))],
+        [tr('output'), fmtInt(g.output), ''],
+        [tr('peak_context'), fmtInt(p.totals.peakContext), c.dim(tr('peak_context_note'))],
+        [tr('est_cost'), fmtCost(p.totals.estCostUsd), c.dim(tr('est_cost_note'))],
       ],
       { aligns: ['l', 'r', 'l'] },
     ),
@@ -892,17 +1272,17 @@ function renderSessionPretty(p, opts) {
 
   // Context growth
   if (p.contextSeries.length > 1) {
-    out.push(c.bold('CONTEXT GROWTH') + c.dim('  (input+cache per call)'))
-    out.push('  ' + c.cyan(sparkline(p.contextSeries)) + c.dim(`  peak ${fmtTokens(p.totals.peakContext)}`))
+    out.push(c.bold(tr('context_growth')) + c.dim('  ' + tr('context_growth_note')))
+    out.push('  ' + c.cyan(sparkline(p.contextSeries)) + c.dim('  ' + tr('peak', { n: fmtTokens(p.totals.peakContext) })))
     if (p.compacts.length) {
-      out.push(c.dim(`  ${p.compacts.length} compact(s) detected — see COMPACTS below`))
+      out.push(c.dim('  ' + tr('compacts_hint', { n: p.compacts.length })))
     }
     out.push('')
   }
 
   // Per-turn
   if (p.turnRows.length) {
-    out.push(c.bold('PER-TURN BREAKDOWN'))
+    out.push(c.bold(tr('per_turn')))
     const totalCost = p.turnRows.reduce((a, r) => a + r.costUsd, 0) || 1
     out.push(
       table(
@@ -920,23 +1300,23 @@ function renderSessionPretty(p, opts) {
           r.failed ? c.red(`${r.failed}✗`) : '',
         ]),
         {
-          headers: ['turn', 'prompt', 'tools', 'fresh', 'cache-w', 'cache-r', 'out', 'results*', 'cost', 'share', ''],
+          headers: [tr('h_turn'), tr('h_prompt'), tr('h_tools'), tr('h_fresh'), tr('h_cache_w'), tr('h_cache_r'), tr('h_out'), tr('h_results'), tr('h_cost'), tr('h_share'), ''],
           aligns: ['l', 'l', 'r', 'r', 'r', 'r', 'r', 'r', 'r', 'r', 'l'],
         },
       ),
     )
-    out.push(c.dim('  *results = est. tokens injected into context by tool results (chars/4)'))
+    out.push(c.dim('  ' + tr('results_footnote')))
     out.push('')
   }
 
   // Phases
   if (p.phases.length) {
-    out.push(c.bold('PHASE BREAKDOWN') + c.dim('  (explore / edit / execute / test / …)'))
+    out.push(c.bold(tr('phase_breakdown')) + c.dim('  ' + tr('phase_breakdown_note')))
     const totalResult = p.phases.reduce((a, r) => a + r.resultEstTokens, 0) || 1
     out.push(
       table(
         p.phases.map((r) => [
-          r.phase,
+          tr(`phase_${r.phase}`),
           fmtInt(r.toolCalls),
           fmtTokens(r.resultEstTokens),
           fmtPct(r.resultEstTokens / totalResult),
@@ -944,7 +1324,7 @@ function renderSessionPretty(p, opts) {
           r.failed ? c.red(`${r.failed}✗`) : '',
         ]),
         {
-          headers: ['phase', 'tool calls', 'result tokens*', 'share', 'output tokens', ''],
+          headers: [tr('h_phase'), tr('h_tool_calls'), tr('h_result_tokens'), tr('h_share'), tr('h_output_tokens'), ''],
           aligns: ['l', 'r', 'r', 'r', 'r', 'l'],
         },
       ),
@@ -953,9 +1333,9 @@ function renderSessionPretty(p, opts) {
   }
 
   // Waste signals
-  out.push(c.bold('WASTE SIGNALS'))
+  out.push(c.bold(tr('waste_signals')))
   if (p.waste.repeatedReads.length) {
-    out.push('  ' + c.yellow('Repeated file reads') + c.dim(` — est. ${fmtTokens(p.waste.repeatedReadWasteEstTokens)} wasted`))
+    out.push('  ' + c.yellow(tr('repeated_reads')) + c.dim(tr('wasted_suffix', { n: fmtTokens(p.waste.repeatedReadWasteEstTokens) })))
     out.push(
       table(
         p.waste.repeatedReads.slice(0, opts.top).map((r) => [
@@ -963,16 +1343,16 @@ function renderSessionPretty(p, opts) {
           r.key,
           fmtTokens(r.totalEstTokens),
           fmtTokens(r.wastedEstTokens),
-          c.dim(`turns ${r.turns.join(',')}`),
+          c.dim(tr('turns_list', { list: r.turns.join(',') })),
         ]),
-        { headers: ['reads', 'file', 'total est', 'wasted est', ''], aligns: ['r', 'l', 'r', 'r', 'l'], indent: '    ' },
+        { headers: [tr('h_reads'), tr('h_file'), tr('h_total_est'), tr('h_wasted_est'), ''], aligns: ['r', 'l', 'r', 'r', 'l'], indent: '    ' },
       ),
     )
   } else {
-    out.push(c.dim('  No file was read more than once. ✓'))
+    out.push(c.dim('  ' + tr('no_repeats')))
   }
   if (p.waste.repeatedCommands.length) {
-    out.push('  ' + c.yellow('Repeated identical commands'))
+    out.push('  ' + c.yellow(tr('repeated_commands')))
     out.push(
       table(
         p.waste.repeatedCommands.slice(0, 5).map((r) => [`${r.count}×`, r.key.slice(0, 70), fmtTokens(r.totalEstTokens)]),
@@ -981,7 +1361,7 @@ function renderSessionPretty(p, opts) {
     )
   }
   if (p.waste.repeatedGreps.length) {
-    out.push('  ' + c.yellow('Repeated identical greps'))
+    out.push('  ' + c.yellow(tr('repeated_greps')))
     out.push(
       table(
         p.waste.repeatedGreps.slice(0, 5).map((r) => [`${r.count}×`, r.key.slice(0, 70), fmtTokens(r.totalEstTokens)]),
@@ -990,46 +1370,50 @@ function renderSessionPretty(p, opts) {
     )
   }
   if (p.waste.failedCalls.length) {
-    out.push('  ' + c.red(`Failed tool calls (${p.waste.failedCalls.length})`))
+    out.push('  ' + c.red(tr('failed_calls', { n: p.waste.failedCalls.length })))
     out.push(
       table(
-        p.waste.failedCalls.slice(0, opts.top).map((r) => [r.label.slice(0, 70), `turn ${r.turn}`, fmtTokens(r.resultEstTokens)]),
+        p.waste.failedCalls.slice(0, opts.top).map((r) => [r.label.slice(0, 70), tr('turn_n', { n: r.turn }), fmtTokens(r.resultEstTokens)]),
         { aligns: ['l', 'l', 'r'], indent: '    ' },
       ),
     )
   }
-  out.push('  ' + c.bold('Top context consumers') + c.dim(' (largest tool results)'))
+  out.push('  ' + c.bold(tr('top_consumers')) + c.dim(tr('top_consumers_note')))
   out.push(
     table(
       p.waste.topResults.slice(0, opts.top).map((r) => [
         fmtTokens(r.resultEstTokens),
-        r.phase,
+        tr(`phase_${r.phase}`),
         (r.failed ? c.red('✗ ') : '') + r.label.slice(0, 64),
-        c.dim(`turn ${r.turn}`),
+        c.dim(tr('turn_n', { n: r.turn })),
       ]),
-      { headers: ['est tokens', 'phase', 'tool call', ''], aligns: ['r', 'l', 'l', 'l'], indent: '    ' },
+      { headers: [tr('h_est_tokens'), tr('h_phase'), tr('h_tool_call'), ''], aligns: ['r', 'l', 'l', 'l'], indent: '    ' },
     ),
   )
   out.push('')
 
   // Compacts
   if (p.compacts.length) {
-    out.push(c.bold('COMPACTS'))
+    out.push(c.bold(tr('compacts')))
     for (const k of p.compacts) {
-      const head = `  ${fmtTime(k.ts)} · ${k.trigger}${k.explicit ? '' : ' (inferred from context drop)'}`
+      const head = `  ${fmtTime(k.ts)} · ${k.trigger}${k.explicit ? '' : tr('inferred')}`
       const drop =
         k.preTokens != null && k.postTokens != null
-          ? ` — context ${fmtTokens(k.preTokens)} → ${fmtTokens(k.postTokens)} (dropped ~${fmtTokens(Math.max(0, k.preTokens - k.postTokens))})`
+          ? tr('context_drop', {
+              pre: fmtTokens(k.preTokens),
+              post: fmtTokens(k.postTokens),
+              d: fmtTokens(Math.max(0, k.preTokens - k.postTokens)),
+            })
           : ''
       out.push(c.magenta(head) + c.dim(drop))
-      if (k.summaryEstTokens) out.push(c.dim(`    summary kept ~${fmtTokens(k.summaryEstTokens)} est. tokens`))
+      if (k.summaryEstTokens) out.push(c.dim('    ' + tr('summary_kept', { n: fmtTokens(k.summaryEstTokens) })))
       if (k.reReadFiles.length) {
-        out.push(c.dim(`    lost & re-read afterwards (~${fmtTokens(k.reReadEstTokens)} est. tokens):`))
+        out.push(c.dim('    ' + tr('lost_reread', { n: fmtTokens(k.reReadEstTokens) })))
         for (const f of k.reReadFiles.slice(0, opts.top)) {
           out.push(c.dim(`      • ${f.file} (~${fmtTokens(f.reReadEstTokens)})`))
         }
       } else {
-        out.push(c.dim('    nothing previously read was re-read afterwards ✓'))
+        out.push(c.dim('    ' + tr('none_reread')))
       }
     }
     out.push('')
@@ -1037,17 +1421,17 @@ function renderSessionPretty(p, opts) {
 
   // Cache-expiry gaps
   if (p.expiryGaps.length) {
-    out.push(c.bold('CACHE-EXPIRY GAPS') + c.dim('  (pauses >5m; the next call re-writes the cache)'))
+    out.push(c.bold(tr('gaps')) + c.dim(tr('gaps_note')))
     for (const gp of p.expiryGaps.slice(0, opts.top)) {
-      out.push(c.dim(`  ${fmtTime(gp.ts)} after a ${fmtDuration(gp.gapMs)} pause — re-wrote ~${fmtTokens(gp.rewriteTokens)} cache tokens`))
+      out.push(c.dim('  ' + tr('gap_line', { time: fmtTime(gp.ts), gap: fmtDuration(gp.gapMs), n: fmtTokens(gp.rewriteTokens) })))
     }
     out.push('')
   }
 
   // Recommendations
   if (p.recommendations.length) {
-    out.push(c.bold('RECOMMENDATIONS'))
-    for (const r of p.recommendations) out.push('  • ' + r)
+    out.push(c.bold(tr('recommendations')))
+    for (const r of p.recommendations) out.push('  • ' + (typeof r === 'string' ? r : r.text))
     out.push('')
   }
 
@@ -1061,7 +1445,7 @@ function renderSessionPretty(p, opts) {
 function renderOverviewPretty(profiles, opts) {
   const c = makeColor(opts.color)
   const out = []
-  out.push(c.bold(`TOKEN PROFILER · ${profiles.length} session(s)`))
+  out.push(c.bold(tr('overview_title', { n: profiles.length })))
   out.push('')
 
   const rows = profiles.map((p) => {
@@ -1085,7 +1469,7 @@ function renderOverviewPretty(profiles, opts) {
   })
   const sum = (fn) => profiles.reduce((a, p) => a + fn(p), 0)
   rows.push([
-    c.bold('TOTAL'), '', '', '',
+    c.bold(tr('total_row')), '', '', '',
     c.bold(fmtInt(sum((p) => p.counts.turns))),
     c.bold(fmtInt(sum((p) => p.counts.toolCalls))),
     c.bold(fmtTokens(sum((p) => p.totals.grand.input))),
@@ -1099,11 +1483,11 @@ function renderOverviewPretty(profiles, opts) {
   ])
   out.push(
     table(rows, {
-      headers: ['session', 'project', 'started', 'title', 'turns', 'tools', 'fresh', 'cache-w', 'cache-r', 'hit%', 'out', 'rewaste*', 'cmp', 'est cost'],
+      headers: [tr('h_session'), tr('h_project'), tr('h_started'), tr('h_title'), tr('h_turns'), tr('h_tools'), tr('h_fresh'), tr('h_cache_w'), tr('h_cache_r'), tr('h_hit'), tr('h_out'), tr('h_rewaste'), tr('h_cmp'), tr('h_est_cost')],
       aligns: ['l', 'l', 'l', 'l', 'r', 'r', 'r', 'r', 'r', 'r', 'r', 'r', 'r', 'r'],
     }),
   )
-  out.push(c.dim('  *rewaste = est. tokens wasted on repeated file reads · cmp = compacts'))
+  out.push(c.dim(tr('overview_footnote')))
   out.push('')
 
   // Cross-session repeated-read leaderboard
@@ -1119,22 +1503,22 @@ function renderOverviewPretty(profiles, opts) {
   }
   const leaderboard = [...byFile.values()].sort((a, b) => b.wastedEstTokens - a.wastedEstTokens)
   if (leaderboard.length) {
-    out.push(c.bold('MOST RE-READ FILES ACROSS SESSIONS'))
+    out.push(c.bold(tr('leaderboard')))
     out.push(
       table(
         leaderboard.slice(0, opts.top).map((r) => [
           `${r.reads}×`,
           r.file,
           fmtTokens(r.wastedEstTokens),
-          c.dim(`${r.sessions} session(s)`),
+          c.dim(tr('n_sessions', { n: r.sessions })),
         ]),
-        { headers: ['reads', 'file', 'wasted est', ''], aligns: ['r', 'l', 'r', 'l'] },
+        { headers: [tr('h_reads'), tr('h_file'), tr('h_wasted_est'), ''], aligns: ['r', 'l', 'r', 'l'] },
       ),
     )
     out.push('')
   }
 
-  out.push(c.dim(`Run with --session <id> for the per-turn / phase / compact deep-dive.`))
+  out.push(c.dim(tr('deepdive_hint')))
   return out.join('\n')
 }
 
@@ -1151,37 +1535,37 @@ function renderSessionMd(p, opts) {
   const g = p.totals.grand
   const cacheWrite = g.cacheWrite5m + g.cacheWrite1h
   const out = []
-  out.push(`## Token profile · \`${p.sessionId.slice(0, 8)}\` · ${p.project}`)
+  out.push(`## ${tr('report_title')} · \`${p.sessionId.slice(0, 8)}\` · ${p.project}`)
   out.push('')
   out.push(`> ${p.title}`)
   out.push('')
-  out.push(`*${fmtTime(p.startedAt)} → ${fmtTime(p.endedAt)} (${fmtDuration(p.durationMs)}) · ${p.models.map((m) => m.model).join(', ')} · pricing ${p.pricingVersion}*`)
+  out.push(`*${fmtTime(p.startedAt)} → ${fmtTime(p.endedAt)} (${fmtDuration(p.durationMs)}) · ${p.models.map((m) => m.model).join(', ')} · ${tr('pricing', { v: p.pricingVersion })}*`)
   out.push('')
-  out.push('### Totals')
+  out.push(`### ${tr('totals')}`)
   out.push('')
   out.push(
     mdTable(
-      ['metric', 'value', 'note'],
+      [tr('md_metric'), tr('md_value'), tr('md_note')],
       [
-        ['API calls', fmtInt(p.counts.apiCalls), `${p.counts.sidechainApiCalls} in subagents`],
-        ['User turns', fmtInt(p.counts.turns), ''],
-        ['Tool calls', fmtInt(p.counts.toolCalls), p.counts.failedToolCalls ? `${p.counts.failedToolCalls} failed` : ''],
-        ['Fresh input', fmtInt(g.input), ''],
-        ['Cache write', fmtInt(cacheWrite), `5m ${fmtTokens(g.cacheWrite5m)} / 1h ${fmtTokens(g.cacheWrite1h)}`],
-        ['Cache read', fmtInt(g.cacheRead), `hit rate ${fmtPct(p.totals.cacheHitRate)}`],
-        ['Output', fmtInt(g.output), ''],
-        ['Peak context', fmtInt(p.totals.peakContext), ''],
-        ['Est. API cost', fmtCost(p.totals.estCostUsd), 'list-price equivalent'],
+        [tr('api_calls'), fmtInt(p.counts.apiCalls), tr('in_subagents', { n: p.counts.sidechainApiCalls })],
+        [tr('user_turns'), fmtInt(p.counts.turns), ''],
+        [tr('tool_calls'), fmtInt(p.counts.toolCalls), p.counts.failedToolCalls ? tr('n_failed', { n: p.counts.failedToolCalls }) : ''],
+        [tr('fresh_input'), fmtInt(g.input), ''],
+        [tr('cache_write'), fmtInt(cacheWrite), tr('cache_write_split', { a: fmtTokens(g.cacheWrite5m), b: fmtTokens(g.cacheWrite1h) })],
+        [tr('cache_read'), fmtInt(g.cacheRead), tr('hit_rate', { pct: fmtPct(p.totals.cacheHitRate) })],
+        [tr('output'), fmtInt(g.output), ''],
+        [tr('peak_context'), fmtInt(p.totals.peakContext), ''],
+        [tr('est_cost'), fmtCost(p.totals.estCostUsd), tr('est_cost_note')],
       ],
     ),
   )
   out.push('')
   if (p.turnRows.length) {
-    out.push('### Per-turn breakdown')
+    out.push(`### ${tr('per_turn')}`)
     out.push('')
     out.push(
       mdTable(
-        ['turn', 'prompt', 'tools', 'fresh', 'cache-w', 'cache-r', 'out', 'results (est.)', 'cost'],
+        [tr('h_turn'), tr('h_prompt'), tr('h_tools'), tr('h_fresh'), tr('h_cache_w'), tr('h_cache_r'), tr('h_out'), tr('h_results'), tr('h_cost')],
         p.turnRows.map((r) => [
           r.turn,
           r.prompt.slice(0, 60),
@@ -1198,62 +1582,68 @@ function renderSessionMd(p, opts) {
     out.push('')
   }
   if (p.phases.length) {
-    out.push('### Phase breakdown')
+    out.push(`### ${tr('phase_breakdown')}`)
     out.push('')
     const totalResult = p.phases.reduce((a, r) => a + r.resultEstTokens, 0) || 1
     out.push(
       mdTable(
-        ['phase', 'tool calls', 'result tokens (est.)', 'share', 'output tokens'],
-        p.phases.map((r) => [r.phase, r.toolCalls, fmtTokens(r.resultEstTokens), fmtPct(r.resultEstTokens / totalResult), fmtTokens(r.outputTokens)]),
+        [tr('h_phase'), tr('h_tool_calls'), tr('h_result_tokens'), tr('h_share'), tr('h_output_tokens')],
+        p.phases.map((r) => [tr(`phase_${r.phase}`), r.toolCalls, fmtTokens(r.resultEstTokens), fmtPct(r.resultEstTokens / totalResult), fmtTokens(r.outputTokens)]),
       ),
     )
     out.push('')
   }
-  out.push('### Waste signals')
+  out.push(`### ${tr('waste_signals')}`)
   out.push('')
   if (p.waste.repeatedReads.length) {
-    out.push(`**Repeated file reads** — est. ${fmtTokens(p.waste.repeatedReadWasteEstTokens)} wasted`)
+    out.push(`**${tr('repeated_reads')}**${tr('wasted_suffix', { n: fmtTokens(p.waste.repeatedReadWasteEstTokens) })}`)
     out.push('')
     out.push(
       mdTable(
-        ['reads', 'file', 'total (est.)', 'wasted (est.)', 'turns'],
+        [tr('h_reads'), tr('h_file'), tr('h_total_est'), tr('h_wasted_est'), tr('h_turn')],
         p.waste.repeatedReads.slice(0, opts.top).map((r) => [`${r.count}×`, `\`${r.key}\``, fmtTokens(r.totalEstTokens), fmtTokens(r.wastedEstTokens), r.turns.join(', ')]),
       ),
     )
     out.push('')
   }
   if (p.waste.failedCalls.length) {
-    out.push(`**Failed tool calls (${p.waste.failedCalls.length})**`)
+    out.push(`**${tr('failed_calls', { n: p.waste.failedCalls.length })}**`)
     out.push('')
     out.push(
       mdTable(
-        ['tool call', 'turn', 'result (est.)'],
+        [tr('h_tool_call'), tr('h_turn'), tr('h_est_tokens')],
         p.waste.failedCalls.slice(0, opts.top).map((r) => [r.label.slice(0, 70), r.turn, fmtTokens(r.resultEstTokens)]),
       ),
     )
     out.push('')
   }
-  out.push('**Top context consumers**')
+  out.push(`**${tr('top_consumers')}**`)
   out.push('')
   out.push(
     mdTable(
-      ['est. tokens', 'phase', 'tool call', 'turn'],
-      p.waste.topResults.slice(0, opts.top).map((r) => [fmtTokens(r.resultEstTokens), r.phase, r.label.slice(0, 70), r.turn]),
+      [tr('h_est_tokens'), tr('h_phase'), tr('h_tool_call'), tr('h_turn')],
+      p.waste.topResults.slice(0, opts.top).map((r) => [fmtTokens(r.resultEstTokens), tr(`phase_${r.phase}`), r.label.slice(0, 70), r.turn]),
     ),
   )
   out.push('')
   if (p.compacts.length) {
-    out.push('### Compacts')
+    out.push(`### ${tr('compacts')}`)
     out.push('')
     for (const k of p.compacts) {
-      out.push(`- **${fmtTime(k.ts)}** · ${k.trigger}${k.explicit ? '' : ' (inferred)'} — context ${fmtTokens(k.preTokens)} → ${fmtTokens(k.postTokens)}${k.reReadFiles.length ? `; re-read afterwards: ${k.reReadFiles.map((f) => `\`${f.file}\` (~${fmtTokens(f.reReadEstTokens)})`).join(', ')}` : ''}`)
+      out.push(
+        `- **${fmtTime(k.ts)}** · ${k.trigger}${k.explicit ? '' : tr('inferred')}${tr('context_drop', {
+          pre: fmtTokens(k.preTokens),
+          post: fmtTokens(k.postTokens),
+          d: fmtTokens(Math.max(0, (k.preTokens ?? 0) - (k.postTokens ?? 0))),
+        })}${k.reReadFiles.length ? `; ${tr('lost_reread', { n: fmtTokens(k.reReadEstTokens) })} ${k.reReadFiles.map((f) => `\`${f.file}\` (~${fmtTokens(f.reReadEstTokens)})`).join(', ')}` : ''}`,
+      )
     }
     out.push('')
   }
   if (p.recommendations.length) {
-    out.push('### Recommendations')
+    out.push(`### ${tr('recommendations')}`)
     out.push('')
-    for (const r of p.recommendations) out.push(`- ${r}`)
+    for (const r of p.recommendations) out.push(`- ${typeof r === 'string' ? r : r.text}`)
     out.push('')
   }
   return out.join('\n')
@@ -1285,6 +1675,7 @@ function discoverTranscripts(rootDir, projectFilter) {
 
 function main() {
   const opts = parseArgs(process.argv.slice(2))
+  LANG = opts.lang
 
   const transcripts = discoverTranscripts(opts.dir, opts.project)
   if (transcripts.length === 0) {
@@ -1320,6 +1711,14 @@ function main() {
     process.exit(1)
   }
 
+  if (opts.export) {
+    // Like claudeSessions.local.json this contains private prompts and file
+    // paths — the default path is gitignored; keep it that way.
+    fs.mkdirSync(path.dirname(opts.export), { recursive: true })
+    fs.writeFileSync(opts.export, JSON.stringify(profiles, null, 2))
+    console.error(`Exported ${profiles.length} profile(s) to ${opts.export}`)
+  }
+
   const detail = opts.all || profiles.length === 1
 
   if (opts.format === 'json') {
@@ -1348,8 +1747,8 @@ function main() {
         fmtCost(p.totals.estCostUsd),
       ])
       process.stdout.write(
-        `# Token profiler — ${profiles.length} session(s)\n\n` +
-          mdTable(['session', 'project', 'started', 'title', 'turns', 'tools', 'fresh', 'cache-r', 'hit%', 'out', 'rewaste', 'est cost'], rows) +
+        `# ${tr('overview_title', { n: profiles.length })}\n\n` +
+          mdTable([tr('h_session'), tr('h_project'), tr('h_started'), tr('h_title'), tr('h_turns'), tr('h_tools'), tr('h_fresh'), tr('h_cache_r'), tr('h_hit'), tr('h_out'), tr('h_rewaste'), tr('h_est_cost')], rows) +
           '\n',
       )
     }

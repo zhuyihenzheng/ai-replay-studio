@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import type { Session } from '@/types'
+import type { Session, TokenProfile } from '@/types'
 import { mockSessions } from '@/data/mockSessions'
 import claudeSessionsStub from '@/data/claudeSessions.json'
+import tokenProfilesStub from '@/data/tokenProfiles.json'
 
 // Source resolution order:
 //   1. If VITE_FORCE_DEMO is set, always use the bundled demo dataset.
@@ -40,14 +41,34 @@ const rawSessions: Session[] = realSessions.length > 0 ? realSessions : mockSess
 // have been created long ago but still be active, so creation time is wrong.
 const initialSessions: Session[] = [...rawSessions].sort((a, b) => b.endedAt - a.endedAt)
 
+// Token profiles (scripts/token-profiler.mjs --export) follow the same
+// privacy rules as sessions: DEV-only glob for the gitignored local file,
+// tracked stub stays `[]` so builds never bundle real prompts/paths.
+const localProfileModules = useLocalSync
+  ? import.meta.glob<{ default: TokenProfile[] }>(
+      '@/data/tokenProfiles.local.json',
+      { eager: true },
+    )
+  : {}
+const localProfiles = (Object.values(localProfileModules)[0]?.default ?? []) as TokenProfile[]
+const initialProfiles: TokenProfile[] = forceDemo
+  ? []
+  : localProfiles.length > 0
+    ? localProfiles
+    : ((tokenProfilesStub as unknown as TokenProfile[]) ?? [])
+
 interface AppState {
   sessions: Session[]
+  profiles: TokenProfile[]
   usingMockData: boolean
   getSession: (id: string) => Session | undefined
+  getProfile: (sessionId: string) => TokenProfile | undefined
 }
 
 export const useAppStore = create<AppState>((_set, get) => ({
   sessions: initialSessions,
+  profiles: initialProfiles,
   usingMockData: realSessions.length === 0,
   getSession: (id) => get().sessions.find((s) => s.id === id),
+  getProfile: (sessionId) => get().profiles.find((p) => p.sessionId === sessionId),
 }))

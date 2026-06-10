@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Play, TrendingUp, BarChart3, FileDiff, Sparkles, BookOpen } from 'lucide-react'
+import { Play, TrendingUp, BarChart3, Gauge, FileDiff, Sparkles, BookOpen } from 'lucide-react'
 import { useT } from '@/i18n'
 
 const tabs = [
   { to: '', labelKey: 'tabs.replay', icon: Play, end: true },
   { to: 'graph', labelKey: 'tabs.tool_graph', icon: TrendingUp, end: false },
   { to: 'cost', labelKey: 'tabs.cost', icon: BarChart3, end: false },
+  { to: 'profile', labelKey: 'tabs.profiler', icon: Gauge, end: false },
   { to: 'files', labelKey: 'tabs.files', icon: FileDiff, end: false },
   { to: 'artifacts', labelKey: 'tabs.artifacts', icon: Sparkles, end: false },
   { to: 'report', labelKey: 'tabs.client_report', icon: BookOpen, end: false },

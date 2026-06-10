@@ -118,7 +118,15 @@ npm run profile -- --session 1a2b    # deep-dive one session (id prefix)
 npm run profile -- --project replay --since 7
 npm run profile -- --session 1a2b --md > report.md
 npm run profile -- --json | jq '.waste.repeatedReads'
+npm run profile -- --lang zh         # report language: en / zh / ja (default: $LANG)
+npm run profile -- --export          # feed the dashboard's Profiler tab (gitignored)
 ```
+
+The same report is also visible in the dashboard: run
+`npm run profile -- --export`, then open any session's **Profiler** tab.
+The export goes to the gitignored `src/data/tokenProfiles.local.json` and,
+like the session sync, is only loaded in dev so real prompts and paths never
+end up in a build.
 
 Per session it reports:
 

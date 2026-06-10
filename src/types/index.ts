@@ -132,6 +132,101 @@ export interface Issue {
   resolved: boolean
 }
 
+// --- Token profiler (scripts/token-profiler.mjs --export) -------------------
+// Exact numbers come from API usage fields; *EstTokens fields are estimated
+// from text length (~4 chars/token).
+
+export interface ProfileUsage {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite5m: number
+  cacheWrite1h: number
+}
+
+export interface ProfileTurnRow {
+  turn: number
+  prompt: string
+  isCommand: boolean
+  apiCalls: number
+  toolCalls: number
+  failed: number
+  usage: ProfileUsage
+  resultEstTokens: number
+  costUsd: number
+}
+
+export interface ProfilePhaseRow {
+  phase: string
+  toolCalls: number
+  resultEstTokens: number
+  outputTokens: number
+  failed: number
+}
+
+export interface ProfileDupGroup {
+  key: string
+  count: number
+  totalEstTokens: number
+  wastedEstTokens: number
+  turns: number[]
+}
+
+export interface ProfileCompact {
+  ts: number | null
+  trigger: string
+  explicit: boolean
+  preTokens: number | null
+  postTokens: number | null
+  summaryEstTokens: number
+  reReadFiles: { file: string; reReadEstTokens: number }[]
+  reReadEstTokens: number
+}
+
+export interface TokenProfile {
+  sessionId: string
+  file: string
+  project: string
+  title: string
+  startedAt: number | null
+  endedAt: number | null
+  durationMs: number
+  models: { model: string; calls: number }[]
+  pricingVersion: string
+  counts: {
+    apiCalls: number
+    mainApiCalls: number
+    sidechainApiCalls: number
+    turns: number
+    toolCalls: number
+    failedToolCalls: number
+  }
+  totals: {
+    main: ProfileUsage
+    sidechain: ProfileUsage
+    grand: ProfileUsage
+    cacheHitRate: number
+    peakContext: number
+    estCostUsd: number
+  }
+  contextSeries: number[]
+  turnRows: ProfileTurnRow[]
+  phases: ProfilePhaseRow[]
+  waste: {
+    repeatedReads: ProfileDupGroup[]
+    repeatedCommands: ProfileDupGroup[]
+    repeatedGreps: ProfileDupGroup[]
+    repeatedReadWasteEstTokens: number
+    failedCalls: { label: string; turn: number; resultEstTokens: number }[]
+    topResults: { label: string; phase: string; turn: number; resultEstTokens: number; failed: boolean }[]
+  }
+  compacts: ProfileCompact[]
+  expiryGaps: { ts: number; gapMs: number; rewriteTokens: number }[]
+  // Structured so the UI can localize via `profiler.recs.<id>`; `text` is the
+  // CLI-rendered fallback. Plain strings come from older exports.
+  recommendations: (string | { id: string; params: Record<string, string | number>; text: string })[]
+}
+
 export interface Session {
   id: string
   title: string

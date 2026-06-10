@@ -4,6 +4,7 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { SessionReplayPage } from '@/pages/SessionReplayPage'
 import { ToolGraphPage } from '@/pages/ToolGraphPage'
 import { CostAnalysisPage } from '@/pages/CostAnalysisPage'
+import { TokenProfilePage } from '@/pages/TokenProfilePage'
 import { FileChangesPage } from '@/pages/FileChangesPage'
 import { ArtifactsPage } from '@/pages/ArtifactsPage'
 import { ClientReportPage } from '@/pages/ClientReportPage'
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="sessions/:id" element={<SessionReplayPage />} />
         <Route path="sessions/:id/graph" element={<ToolGraphPage />} />
         <Route path="sessions/:id/cost" element={<CostAnalysisPage />} />
+        <Route path="sessions/:id/profile" element={<TokenProfilePage />} />
         <Route path="sessions/:id/files" element={<FileChangesPage />} />
         <Route path="sessions/:id/artifacts" element={<ArtifactsPage />} />
         <Route path="sessions/:id/report" element={<ClientReportPage />} />

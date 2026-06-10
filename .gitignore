@@ -20,6 +20,7 @@ tsconfig.tsbuildinfo
 # NEVER commit. The tracked stub at src/data/claudeSessions.json stays as `[]`.
 src/data/claudeSessions.local.json
 src/data/codexSessions.local.json
+src/data/tokenProfiles.local.json
 
 # Editor cruft
 *.swp

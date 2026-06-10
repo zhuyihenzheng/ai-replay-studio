@@ -12,9 +12,112 @@ export const ja: EnglishDictionary = {
     replay: 'リプレイ',
     tool_graph: 'トレース',
     cost: '使用量',
+    profiler: 'プロファイラ',
     files: 'ファイル',
     artifacts: '成果物',
     client_report: 'レポート',
+  },
+  profiler: {
+    empty_title: 'このセッションのトークンプロファイルはまだありません',
+    empty_desc:
+      '下のコマンドでローカルのトランスクリプトからプロファイルを書き出して、再読み込みしてください。出力は gitignore 済みで、この端末から出ません。',
+    est_note:
+      '正確な数値はローカルログの API usage フィールド由来です。ツール結果やプロンプトのサイズは約 4 文字/トークンで推定し、"est." と表記しています。',
+    cards: {
+      cache_hit_rate: 'キャッシュヒット率',
+      cache_hit_sub: '読み {read} · 書き {write}',
+      peak_context: 'コンテキスト最大値',
+      peak_context_sub: '最大の呼び出しの入力 + キャッシュ',
+      repeat_waste: '再読み込みの無駄（推定）',
+      repeat_waste_sub: '{n} 個のファイルが複数回読まれました',
+      repeat_waste_clean: '重複読み込みはありません',
+      failed_calls: '失敗したツール呼び出し',
+      failed_calls_sub: '全 {n} 回のツール呼び出し中',
+      est_cost: 'API 換算コスト',
+      est_cost_sub: '定価換算 · 料金表 {v}',
+    },
+    context: {
+      title: 'コンテキストの推移',
+      caption:
+        '各 API 呼び出しのコンテキストサイズ（新規入力 + キャッシュ読み + キャッシュ書き）。急落はたいてい compact を意味します。',
+      compacts_hint: '{n} 回の compact を検出 — 下の Compact セクションを参照。',
+    },
+    turns: {
+      title: 'ターン別内訳',
+      caption: '各ユーザーターンのトークン構成とコスト割合。',
+      prompt: 'プロンプト',
+      tools: 'ツール',
+      fresh: '新規入力',
+      cache_w: 'キャッシュ書',
+      cache_r: 'キャッシュ読',
+      out: '出力',
+      results: '結果（推定）',
+      cost: 'コスト',
+      share: '割合',
+    },
+    phases: {
+      title: 'フェーズ別内訳',
+      caption:
+        'アクティビティ別に、ツール結果がコンテキストへ注入した推定トークン数。テストは実際のコマンド（npm test、tsc、lint など）から判定します。',
+      phase: 'フェーズ',
+      explore: '探索',
+      edit: '編集',
+      execute: '実行',
+      test: 'テスト',
+      subagent: 'サブエージェント',
+      mcp: 'MCP',
+      other: 'その他',
+      respond: '応答',
+    },
+    waste: {
+      repeated_reads: '重複して読まれたファイル',
+      repeated_reads_caption:
+        '最初の読み込みは必要なもので、以降の繰り返しが無駄の候補です。大きい項目は CLAUDE.md に記載する価値があります。',
+      none_repeated: '複数回読まれたファイルはありません。✓',
+      repeated_commands: '同一コマンドの繰り返し',
+      reads: '回数',
+      target: '対象',
+      total_est: '合計（推定）',
+      wasted_est: '無駄（推定）',
+      turns: 'ターン',
+      top_title: 'コンテキスト消費ランキング',
+      top_caption: 'コンテキストに注入された最大のツール結果。',
+      est_tokens: '推定トークン',
+      tool_call: 'ツール呼び出し',
+      turn: 'ターン',
+    },
+    compacts: {
+      title: 'Compact',
+      caption:
+        '各圧縮の前後のコンテキストサイズと、その後再読み込みが必要になったファイル（compact が失ったもの）。',
+      inferred: 'コンテキスト急落から推定',
+      re_read: '失われて後で再読み込み（約 {tokens} 推定トークン）：',
+      none_re_read: '以前読んだものの再読み込みはありませんでした。✓',
+    },
+    gaps: {
+      title: 'キャッシュ失効ギャップ',
+      caption:
+        '5 分超の停止が {n} 回あり、プロンプトキャッシュが失効した可能性があります。直後の呼び出しは約 {tokens} のキャッシュトークンを入力単価の 1.25–2 倍で書き直しました。',
+      line: '{gap} の停止後 — 約 {tokens} のキャッシュトークンを書き直し',
+    },
+    recs: {
+      title: '改善提案',
+      caption: '上記の検出結果から自動生成。',
+      repeated_reads:
+        'ファイルの重複読み込みに約 {tokens} 推定トークン（最多：{file} ×{count}）。offset/limit で部分読みするか、安定したファイルの要点を CLAUDE.md にまとめると毎ターンの再読を防げます。',
+      low_cache_hit:
+        'キャッシュヒット率が {rate} です — 入力トークンの大半をフル/書き込み価格で支払っています。5 分超の停止や頻繁なシステムプロンプト変更はキャッシュを無効化します。',
+      expiry_gaps:
+        '5 分超の停止が {n} 回あり、プロンプトキャッシュが失効した可能性があります。直後の呼び出しは約 {tokens} のキャッシュトークンを入力単価の 1.25–2 倍で書き直しました。',
+      huge_results:
+        '約 1.5 万推定トークンを超えるツール結果が {n} 件（最大：{label}、約 {tokens}）。Read の offset/limit、Grep の head_limit、または結論のみ返すサブエージェントへの委譲を検討してください。',
+      failed_calls:
+        '{n} 件のツール呼び出しが失敗。失敗してもコンテキストと再試行の分は支払いが発生します。失敗一覧で権限エラーや繰り返しの誤パスを確認してください。',
+      compact_reread:
+        '{trigger} compact の後、{n} 個のファイルの再読み込みが必要でした（約 {tokens} 推定トークン）。区切りの良いタイミングで自分から /compact すると、その時点で必要なファイルが少なくて済みます。',
+      subagent:
+        'サブエージェントは {calls} 回の呼び出しで入力側約 {tokens}・出力 {output} トークンを消費 — メインコンテキストを小さく保てています（良いこと）。コスト合計には含まれています。',
+    },
   },
   dashboard: {
     workspace: 'ワークスペース',

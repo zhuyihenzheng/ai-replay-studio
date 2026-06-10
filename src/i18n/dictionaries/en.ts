@@ -10,9 +10,112 @@ export const en = {
     replay: 'Replay',
     tool_graph: 'Trace',
     cost: 'Usage',
+    profiler: 'Profiler',
     files: 'Files',
     artifacts: 'Artifacts',
     client_report: 'Client Report',
+  },
+  profiler: {
+    empty_title: 'No token profile for this session yet',
+    empty_desc:
+      'Export profiles from your local transcripts with the command below, then reload. The export is gitignored and never leaves this device.',
+    est_note:
+      'Exact numbers come from the API usage fields in the local log. Tool-result and prompt sizes are estimated at ~4 characters per token and marked "est.".',
+    cards: {
+      cache_hit_rate: 'Cache hit rate',
+      cache_hit_sub: 'read {read} · write {write}',
+      peak_context: 'Peak context',
+      peak_context_sub: 'input + cache of the largest call',
+      repeat_waste: 'Re-read waste (est.)',
+      repeat_waste_sub: '{n} file(s) read more than once',
+      repeat_waste_clean: 'no file was read twice',
+      failed_calls: 'Failed tool calls',
+      failed_calls_sub: 'of {n} tool calls',
+      est_cost: 'Est. API cost',
+      est_cost_sub: 'list-price equivalent · pricing {v}',
+    },
+    context: {
+      title: 'Context growth',
+      caption:
+        'Context size (fresh input + cache read + cache write) of each API call. A cliff usually means a compact.',
+      compacts_hint: '{n} compact(s) detected — see the Compacts section below.',
+    },
+    turns: {
+      title: 'Per-turn breakdown',
+      caption: 'Every user turn with its token composition and cost share.',
+      prompt: 'prompt',
+      tools: 'tools',
+      fresh: 'fresh',
+      cache_w: 'cache-w',
+      cache_r: 'cache-r',
+      out: 'out',
+      results: 'results (est.)',
+      cost: 'cost',
+      share: 'share',
+    },
+    phases: {
+      title: 'Phase breakdown',
+      caption:
+        'Est. tokens injected into context by tool results, by activity. Test is detected from the actual commands (npm test, tsc, linters, …).',
+      phase: 'phase',
+      explore: 'Explore',
+      edit: 'Edit',
+      execute: 'Execute',
+      test: 'Test',
+      subagent: 'Subagent',
+      mcp: 'MCP',
+      other: 'Other',
+      respond: 'Respond',
+    },
+    waste: {
+      repeated_reads: 'Repeated file reads',
+      repeated_reads_caption:
+        'The first read is necessary; the repeats are waste candidates. The biggest entries deserve a note in CLAUDE.md.',
+      none_repeated: 'No file was read more than once. ✓',
+      repeated_commands: 'Repeated identical commands',
+      reads: 'count',
+      target: 'target',
+      total_est: 'total (est.)',
+      wasted_est: 'wasted (est.)',
+      turns: 'turns',
+      top_title: 'Top context consumers',
+      top_caption: 'Largest tool results injected into the context.',
+      est_tokens: 'est. tokens',
+      tool_call: 'tool call',
+      turn: 'turn',
+    },
+    compacts: {
+      title: 'Compacts',
+      caption:
+        'Context before → after each compaction, and which files had to be re-read afterwards (what the compact lost).',
+      inferred: 'inferred from context drop',
+      re_read: 'Lost & re-read afterwards (~{tokens} est. tokens):',
+      none_re_read: 'Nothing previously read was re-read afterwards. ✓',
+    },
+    gaps: {
+      title: 'Cache-expiry gaps',
+      caption:
+        '{n} pause(s) longer than 5 minutes likely expired the prompt cache; the next calls re-wrote ~{tokens} cache tokens at 1.25–2× input price.',
+      line: 'after a {gap} pause — re-wrote ~{tokens} cache tokens',
+    },
+    recs: {
+      title: 'Recommendations',
+      caption: 'Generated from the findings above.',
+      repeated_reads:
+        'Repeated file reads cost ~{tokens} est. tokens (top: {file} ×{count}). Read with offset/limit, or summarize stable files in CLAUDE.md so they are not re-read each turn.',
+      low_cache_hit:
+        'Cache hit rate is {rate} — most input tokens were paid at full/write price. Long pauses (>5 min) and frequent system-prompt changes invalidate the cache.',
+      expiry_gaps:
+        '{n} pause(s) longer than 5 minutes likely expired the prompt cache; the following calls re-wrote ~{tokens} cache tokens at 1.25–2× input price.',
+      huge_results:
+        '{n} tool result(s) over ~15k est. tokens (largest: {label}, ~{tokens}). Use Read offset/limit, Grep head_limit, or delegate bulk exploration to a subagent that returns only conclusions.',
+      failed_calls:
+        '{n} tool calls failed; each failure still pays for its context and a retry. Check the failed-calls list for permission errors or repeated bad paths.',
+      compact_reread:
+        'After the {trigger} compact, {n} file(s) had to be re-read (~{tokens} est. tokens). Consider /compact at a natural milestone yourself, after which fewer files are still needed.',
+      subagent:
+        'Subagents consumed ~{tokens} input-side and {output} output tokens in {calls} calls — this kept the main context smaller (good); it is included in cost totals.',
+    },
   },
   dashboard: {
     workspace: 'Workspace',

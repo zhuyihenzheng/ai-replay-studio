@@ -105,6 +105,53 @@ public rate card).
 
 ---
 
+## Token Profiler (CLI)
+
+`ccusage` tells you what a session cost; the profiler tells you **where it
+was wasted**. It's a zero-dependency CLI that reads the same
+`~/.claude/projects/**/*.jsonl` transcripts offline (no network, no
+writes) and prints a comprehensive token report:
+
+```bash
+npm run profile                      # overview of all sessions + waste totals
+npm run profile -- --session 1a2b    # deep-dive one session (id prefix)
+npm run profile -- --project replay --since 7
+npm run profile -- --session 1a2b --md > report.md
+npm run profile -- --json | jq '.waste.repeatedReads'
+```
+
+Per session it reports:
+
+- **Totals & composition** — fresh input / cache write (5m/1h) / cache
+  read / output, cache **hit rate**, peak context, est. API-equivalent cost.
+- **Context growth** — a sparkline of context size per API call, so you can
+  see the ramp toward a compact.
+- **Per-turn breakdown** — every user turn with its tool calls, token
+  composition, est. tokens injected by tool results, cost and cost share.
+- **Phase breakdown** — explore / edit / execute / test / subagent shares,
+  classified from the actual tool calls (`npm test`, `tsc`, linters etc.
+  count as *test*).
+- **Waste signals** — files read more than once (and the est. tokens the
+  repeats cost), repeated identical commands/greps, failed tool calls, and
+  the top context consumers (largest tool results).
+- **Compacts** — explicit `compact_boundary` events *and* inferred
+  context-drop compactions, with context before → after, what the summary
+  kept, and **which files had to be re-read afterwards** (i.e. what the
+  compact lost).
+- **Cache-expiry gaps** — pauses >5 min that likely expired the 5-minute
+  prompt cache, and how many cache tokens the next call had to re-write.
+- **Recommendations** — generated from the findings above (use
+  `offset`/`limit` reads, move stable file knowledge to `CLAUDE.md`,
+  compact at your own milestones, …).
+
+Exact numbers come from the API `usage` fields in the log; sizes of tool
+results/prompts are estimated at ~4 chars/token and always labeled *est.*
+The multi-session overview also aggregates a **most re-read files across
+sessions** leaderboard — the files that most deserve a mention in your
+`CLAUDE.md`.
+
+---
+
 ## Quick start
 
 ```bash

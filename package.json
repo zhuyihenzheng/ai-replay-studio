@@ -26,11 +26,15 @@
     "vite",
     "anthropic"
   ],
+  "bin": {
+    "token-profiler": "./scripts/token-profiler.mjs"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "sync": "node scripts/sync-claude-sessions.mjs",
+    "profile": "node scripts/token-profiler.mjs",
     "screenshots": "node scripts/capture-screenshots.mjs",
     "typecheck": "tsc -b --noEmit"
   },

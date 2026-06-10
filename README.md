@@ -56,6 +56,7 @@ Codex the same. Honest beats impressive.
 | **Session replay** | Step-by-step: prompt → tool calls → outputs → retries → final answer. Stage boundaries come from your user‑turns, not the model's self‑narration. |
 | **Trace** | A collapsible stage list. Each stage row carries a slim **token‑share bar** (length = its share of tokens, colored by status) plus step / token / duration counts; expand a stage to walk its steps. Routine same‑kind runs auto‑group; failures/retries are flagged. Scales cleanly from 3 stages to 300. |
 | **Usage** | Token totals, **token composition** (fresh input / output / cache read / cache write), tokens by stage, cumulative tokens over steps, the most token‑heavy stage, and retry‑wasted tokens. |
+| **Profiler** | Where tokens were **wasted**: cache hit rate, context growth, per‑turn and explore/edit/test phase breakdowns, repeated file reads, compact losses, cache‑expiry gaps, and generated recommendations. Fed by `npm run profile -- --export` (see [Token Profiler](#token-profiler-cli)). |
 | **File changes** | Every file the agent touched, with a captured diff. |
 | **Artifacts** | Final answers, decisions, code snippets, commands worth keeping. Favoritable. |
 | **Client report** | Hides the raw tool stream and shows the deliverable — for the person who signs off, not the person who debugs. |

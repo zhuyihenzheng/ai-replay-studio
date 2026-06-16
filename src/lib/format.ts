@@ -31,6 +31,10 @@ export function formatRelative(ts: number, now = Date.now()): string {
   return `${Math.round(diff / day)}d ago`
 }
 
+export function totalTokens(call?: { tokensIn?: number; tokensOut?: number }): number {
+  return call ? (call.tokensIn ?? 0) + (call.tokensOut ?? 0) : 0
+}
+
 export function formatDateTime(ts: number): string {
   const d = new Date(ts)
   return d.toLocaleString(undefined, {

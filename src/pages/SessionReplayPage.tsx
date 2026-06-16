@@ -12,7 +12,7 @@ import {
 import { useAppStore } from '@/store'
 import { SessionShell } from '@/components/SessionShell'
 import { EmptyState } from '@/components/EmptyState'
-import { formatDuration, formatTokens } from '@/lib/format'
+import { formatDuration, formatTokens, totalTokens as tok } from '@/lib/format'
 import { useT } from '@/i18n'
 import type { Session, ToolCall, ToolCallKind } from '@/types'
 
@@ -453,7 +453,6 @@ function InsightsCard({ session }: { session: Session }) {
 function CostSnapshotCard({ session }: { session: Session }) {
   const t = useT()
   const callById = new Map(session.toolCalls.map((c) => [c.id, c]))
-  const tok = (c?: ToolCall) => (c ? (c.tokensIn ?? 0) + (c.tokensOut ?? 0) : 0)
   const total = session.tokensIn + session.tokensOut
   return (
     <div className="card" style={{ padding: 16 }}>

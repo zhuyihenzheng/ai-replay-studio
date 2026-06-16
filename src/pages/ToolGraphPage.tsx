@@ -4,7 +4,7 @@ import { ChevronRight } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { SessionShell, SESSION_MAX_WIDTH, SESSION_GUTTER } from '@/components/SessionShell'
 import { EmptyState } from '@/components/EmptyState'
-import { formatDuration, formatElapsed, formatTokens } from '@/lib/format'
+import { formatDuration, formatElapsed, formatTokens, totalTokens as totalTok } from '@/lib/format'
 import { useT } from '@/i18n'
 import type { TFunction } from '@/i18n'
 import type { Session, ToolCall, ToolCallKind } from '@/types'
@@ -70,10 +70,6 @@ function compositionOf(calls: ToolCall[]): Composition {
 function retriesOf(call: ToolCall): number {
   if (call.status === 'retried') return Math.max(1, call.retries ?? 1)
   return call.retries ?? 0
-}
-
-function totalTok(call: ToolCall): number {
-  return (call.tokensIn ?? 0) + (call.tokensOut ?? 0)
 }
 
 // Claude Code JSONL reports `usage` per assistant message, not per tool_use.

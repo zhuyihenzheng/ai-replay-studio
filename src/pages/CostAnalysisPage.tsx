@@ -4,11 +4,8 @@ import { useAppStore } from '@/store'
 import { SessionShell, SessionDoc } from '@/components/SessionShell'
 import { EmptyState } from '@/components/EmptyState'
 import { HorizontalBarChart, StackedAreaChart } from '@/components/Charts'
-import { formatTokens } from '@/lib/format'
+import { formatTokens, totalTokens as tokensOfCall } from '@/lib/format'
 import { useT } from '@/i18n'
-
-const tokensOfCall = (c?: { tokensIn?: number; tokensOut?: number }) =>
-  c ? (c.tokensIn ?? 0) + (c.tokensOut ?? 0) : 0
 
 const STAGE_PALETTE = [
   '#b25515', // accent terracotta

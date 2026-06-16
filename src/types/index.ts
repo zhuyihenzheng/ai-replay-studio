@@ -1,7 +1,5 @@
 export type AgentSource = 'claude-code' | 'cursor' | 'codex'
 export type SessionStatus = 'success' | 'partial' | 'failed' | 'running'
-export type BillingPayer = 'subscription' | 'api' | 'extra-usage' | 'unknown' | 'mixed'
-export type BillingConfidence = 'high' | 'medium' | 'low'
 
 export type ToolCallKind =
   | 'input'
@@ -23,11 +21,8 @@ export interface ToolCall {
   durationMs: number
   tokensIn?: number
   tokensOut?: number
-  costUsd?: number
   model?: string
   usage?: TokenUsage
-  costEstimate?: CostEstimate
-  billing?: BillingBreakdown
   detail?: string
   retries?: number
   parentId?: string
@@ -41,30 +36,6 @@ export interface TokenUsage {
   cacheWrite1hTokens: number
   webSearchRequests: number
   webFetchRequests: number
-}
-
-export interface CostEstimate {
-  apiEquivalentUsd: number
-  inputUsd: number
-  outputUsd: number
-  cacheReadUsd: number
-  cacheWriteUsd: number
-  toolUseUsd: number
-  currency: 'USD'
-  pricingSource: string
-  pricingVersion: string
-  confidence: BillingConfidence
-}
-
-export interface BillingBreakdown {
-  payer: BillingPayer
-  actualBillableUsd: number
-  includedUsdEquivalent: number
-  apiBilledUsd: number
-  extraUsageUsd: number
-  unknownUsdEquivalent: number
-  confidence: BillingConfidence
-  evidence: string[]
 }
 
 export interface FileChange {
@@ -102,26 +73,9 @@ export interface Stage {
   startedAt: number
   endedAt: number
   durationMs: number
-  costUsd: number
-  apiEquivalentUsd?: number
-  billableUsd?: number
   status: 'success' | 'partial' | 'failed'
   summary: string
   toolCallIds: string[]
-}
-
-export interface SessionBilling extends BillingBreakdown {
-  mode: 'subscription' | 'api' | 'extra-usage' | 'unknown'
-  planName?: string
-  limitHit: boolean
-  limitResetText?: string
-}
-
-export interface CostBreakdown {
-  stageId: string
-  stageName: string
-  costUsd: number
-  tokens: number
 }
 
 export interface Issue {
@@ -142,10 +96,7 @@ export interface Session {
   durationMs: number
   tokensIn: number
   tokensOut: number
-  costUsd: number
   usage?: TokenUsage
-  costEstimate?: CostEstimate
-  billing?: SessionBilling
   retryCount: number
   toolCallCount: number
   changedFileCount: number
@@ -158,5 +109,5 @@ export interface Session {
   toolCalls: ToolCall[]
   files: FileChange[]
   artifacts: Artifact[]
-  miniTimeline: number[] // 0..1 normalized cost-or-activity per slot
+  miniTimeline: number[] // 0..1 normalized activity per slot
 }

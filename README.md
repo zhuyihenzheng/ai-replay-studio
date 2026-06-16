@@ -99,10 +99,6 @@ be a bill. It counts tokens from local logs and stops there. Codex and
 Claude are treated identically (no fabricated numbers for models without a
 public rate card).
 
-> Note: `scripts/sync-*` still computes a dormant internal billing
-> classification from earlier versions; nothing in the UI reads it. It's
-> on the roadmap to prune.
-
 ---
 
 ## Quick start
@@ -171,10 +167,6 @@ src/i18n/*                EN / 简体中文 / 日本語 + typed t() + locale det
 - [ ] Sanitized export: redact prompts/paths/diffs in place so a session
       can be shared safely
 - [ ] Streaming view for long-running sessions
-- [ ] Prune the dormant billing classification from `scripts/sync-*` and
-      `src/lib/cost.ts` (no longer used by the UI)
-- [ ] Prune now-unused deps (`reactflow`, `recharts`) from `package.json`
-      (already tree-shaken out of the build — housekeeping, not a size fix)
 
 ---
 

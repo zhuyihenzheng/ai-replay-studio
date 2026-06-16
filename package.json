@@ -1,7 +1,7 @@
 {
   "name": "ai-replay-studio",
   "version": "0.1.0",
-  "description": "Visual replay for AI coding-agent sessions. Turns local Claude Code and Codex transcripts into a session dashboard with timeline replay, tool graph, file diffs, artifacts, and cost vs. billable analysis.",
+  "description": "Visual replay for AI coding-agent sessions. Turns local Claude Code and Codex transcripts into a session dashboard with timeline replay, tool graph, file diffs, artifacts, and token usage analysis.",
   "type": "module",
   "license": "MIT",
   "homepage": "https://github.com/zhuyihenzheng/ai-replay-studio#readme",
@@ -39,8 +39,6 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
-    "reactflow": "^11.11.4",
-    "recharts": "^2.13.0",
     "zustand": "^5.0.1"
   },
   "devDependencies": {

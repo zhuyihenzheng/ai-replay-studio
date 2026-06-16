@@ -7,13 +7,6 @@ export function formatDuration(ms: number): string {
   return r === 0 ? `${m}m` : `${m}m ${r}s`
 }
 
-export function formatCost(usd: number): string {
-  if (usd === 0) return '$0'
-  if (usd < 0.01) return `$${usd.toFixed(4)}`
-  if (usd < 1) return `$${usd.toFixed(3)}`
-  return `$${usd.toFixed(2)}`
-}
-
 export function formatElapsed(ts: number, sessionStart: number): string {
   const elapsed = Math.max(ts - sessionStart, 0)
   const m = Math.floor(elapsed / 60000)

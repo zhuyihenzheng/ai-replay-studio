@@ -51,13 +51,9 @@ the bundled demo dataset only — never your real synced transcripts.
   agents — also welcome. Importers are plain Node ESM; see
   `scripts/sync-claude-sessions.mjs` for the pattern. Each importer
   produces an array of `Session` objects (see `src/types/index.ts`).
-- **Pricing-table updates.** Anthropic / OpenAI publish new model rates
-  faster than this repo will keep up. The Claude rate table lives at the
-  top of `scripts/sync-claude-sessions.mjs`. PRs updating rates with a
-  source link are easy to review and merge.
-- **Visualizations.** The cost analysis page has room for better
-  per-tool-kind breakdowns and per-model attribution. The tool graph
-  page is currently a flat React Flow; clustering by stage would help.
+- **Visualizations.** The Usage page has room for better per-tool-kind
+  breakdowns and per-model attribution. The Trace page's hand-rolled
+  SVG timeline is flat; clustering by stage would help.
 - **Sanitized export.** A way to redact prompts/paths/diffs in-place so
   a single session can be safely shared (issue tracker, blog post)
   without leaking the surrounding work. Listed on the roadmap.
@@ -77,7 +73,7 @@ the bundled demo dataset only — never your real synced transcripts.
 - Inline styles in pages are fine; the project is not chasing a CSS
   architecture rewrite.
 - Tests aren't required for visualization work but very welcome for
-  importer logic and cost classification.
+  importer logic and token-usage classification.
 
 ## Privacy
 

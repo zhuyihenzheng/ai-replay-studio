@@ -14,16 +14,6 @@
 //   assistant (tool_use)     -> tool call (pending, completed when matching result arrives)
 //   assistant (text)         -> output / final-answer (last one becomes the session output)
 //   assistant (thinking)     -> ignored (not part of session output)
-//
-// Cost model:
-//   - costUsd remains the API-equivalent list-price estimate for backward compatibility.
-//   - costEstimate carries the model-aware estimate and cost components.
-//   - billing distinguishes subscription-included value from API/extra-usage billable spend.
-//
-// Billing env knobs:
-//   CLAUDE_REPLAY_BILLING_MODE=subscription|api|extra-usage|unknown
-//   CLAUDE_REPLAY_EXTRA_USAGE=true|false|unknown
-//   CLAUDE_REPLAY_PLAN=Max|Pro|Team|API
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -39,48 +29,6 @@ const OUT_FILE = path.join(
   'data',
   'claudeSessions.local.json',
 )
-
-// Pricing rates live in scripts/pricing-table.mjs so they can be updated in
-// one place. Run `npm run sync` after any change.
-import {
-  PRICING_SOURCE,
-  PRICING_VERSION,
-  MODEL_RATES,
-  DEFAULT_RATE,
-  CACHE_READ_MULTIPLIER,
-  CACHE_WRITE_5M_MULTIPLIER,
-  CACHE_WRITE_1H_MULTIPLIER,
-  WEB_SEARCH_USD,
-} from './pricing-table.mjs'
-
-function normalizeBillingMode(value) {
-  const v = String(value || '').trim().toLowerCase().replace(/_/g, '-')
-  if (['subscription', 'api', 'extra-usage', 'unknown'].includes(v)) return v
-  return 'subscription'
-}
-
-function normalizeTriState(value) {
-  const v = String(value || '').trim().toLowerCase()
-  if (['1', 'true', 'yes', 'on', 'enabled'].includes(v)) return true
-  if (['0', 'false', 'no', 'off', 'disabled'].includes(v)) return false
-  return 'unknown'
-}
-
-const BILLING_PROFILE = {
-  mode: normalizeBillingMode(
-    process.env.CLAUDE_REPLAY_BILLING_MODE || process.env.AI_REPLAY_BILLING_MODE,
-  ),
-  extraUsage: normalizeTriState(
-    process.env.CLAUDE_REPLAY_EXTRA_USAGE || process.env.AI_REPLAY_EXTRA_USAGE,
-  ),
-  planName: process.env.CLAUDE_REPLAY_PLAN || process.env.AI_REPLAY_PLAN || 'Claude subscription',
-}
-
-function rateForModel(model) {
-  if (!model || model === '<synthetic>') return { ...DEFAULT_RATE, zero: true }
-  const found = MODEL_RATES.find((r) => r.match.test(model))
-  return found ?? DEFAULT_RATE
-}
 
 const FILE_OP_TOOLS = new Set(['Read', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
 const COMMAND_TOOLS = new Set(['Bash'])
@@ -193,15 +141,6 @@ function toolResultText(content) {
   return String(content)
 }
 
-function classifyResultStatus(toolResultUserEvent) {
-  const inner = toolResultUserEvent?.message?.content
-  if (!Array.isArray(inner)) return 'success'
-  for (const c of inner) {
-    if (c?.type === 'tool_result' && c?.is_error === true) return 'failed'
-  }
-  return 'success'
-}
-
 function emptyUsage() {
   return {
     inputTokens: 0,
@@ -245,167 +184,8 @@ function usageFromAnthropic(usage) {
   }
 }
 
-function emptyCostEstimate(confidence = 'medium') {
-  return {
-    apiEquivalentUsd: 0,
-    inputUsd: 0,
-    outputUsd: 0,
-    cacheReadUsd: 0,
-    cacheWriteUsd: 0,
-    toolUseUsd: 0,
-    currency: 'USD',
-    pricingSource: PRICING_SOURCE,
-    pricingVersion: PRICING_VERSION,
-    confidence,
-  }
-}
-
-function addCostEstimate(a, b) {
-  return {
-    ...a,
-    apiEquivalentUsd: a.apiEquivalentUsd + b.apiEquivalentUsd,
-    inputUsd: a.inputUsd + b.inputUsd,
-    outputUsd: a.outputUsd + b.outputUsd,
-    cacheReadUsd: a.cacheReadUsd + b.cacheReadUsd,
-    cacheWriteUsd: a.cacheWriteUsd + b.cacheWriteUsd,
-    toolUseUsd: a.toolUseUsd + b.toolUseUsd,
-    confidence: a.confidence === 'low' || b.confidence === 'low' ? 'low' : a.confidence,
-  }
-}
-
-function estimateUsageCost(model, anthropicUsage) {
-  const usage = usageFromAnthropic(anthropicUsage)
-  const rate = rateForModel(model)
-  if (rate.zero) return { usage, costEstimate: emptyCostEstimate('high') }
-
-  const inputUsd = (usage.inputTokens * rate.inputPerMTok) / 1_000_000
-  const outputUsd = (usage.outputTokens * rate.outputPerMTok) / 1_000_000
-  const cacheReadUsd =
-    (usage.cacheReadTokens * rate.inputPerMTok * CACHE_READ_MULTIPLIER) / 1_000_000
-  const cacheWriteUsd =
-    (usage.cacheWrite5mTokens * rate.inputPerMTok * CACHE_WRITE_5M_MULTIPLIER +
-      usage.cacheWrite1hTokens * rate.inputPerMTok * CACHE_WRITE_1H_MULTIPLIER) /
-    1_000_000
-  const toolUseUsd = usage.webSearchRequests * WEB_SEARCH_USD
-  const apiEquivalentUsd = inputUsd + outputUsd + cacheReadUsd + cacheWriteUsd + toolUseUsd
-
-  return {
-    usage,
-    costEstimate: {
-      apiEquivalentUsd,
-      inputUsd,
-      outputUsd,
-      cacheReadUsd,
-      cacheWriteUsd,
-      toolUseUsd,
-      currency: 'USD',
-      pricingSource: PRICING_SOURCE,
-      pricingVersion: PRICING_VERSION,
-      confidence: rate === DEFAULT_RATE ? 'low' : 'medium',
-    },
-  }
-}
-
-function emptyBilling(payer = 'unknown', confidence = 'low') {
-  return {
-    payer,
-    actualBillableUsd: 0,
-    includedUsdEquivalent: 0,
-    apiBilledUsd: 0,
-    extraUsageUsd: 0,
-    unknownUsdEquivalent: 0,
-    confidence,
-    evidence: [],
-  }
-}
-
-function addBilling(a, b) {
-  const payer = a.payer === b.payer ? a.payer : a.payer === 'unknown' ? b.payer : b.payer === 'unknown' ? a.payer : 'mixed'
-  return {
-    payer,
-    actualBillableUsd: a.actualBillableUsd + b.actualBillableUsd,
-    includedUsdEquivalent: a.includedUsdEquivalent + b.includedUsdEquivalent,
-    apiBilledUsd: a.apiBilledUsd + b.apiBilledUsd,
-    extraUsageUsd: a.extraUsageUsd + b.extraUsageUsd,
-    unknownUsdEquivalent: a.unknownUsdEquivalent + b.unknownUsdEquivalent,
-    confidence:
-      a.confidence === 'low' || b.confidence === 'low'
-        ? 'low'
-        : a.confidence === 'medium' || b.confidence === 'medium'
-          ? 'medium'
-          : 'high',
-    evidence: Array.from(new Set([...a.evidence, ...b.evidence])).slice(0, 8),
-  }
-}
-
-function classifyBilling(apiEquivalentUsd, ts, limitState) {
-  const evidence = []
-  if (BILLING_PROFILE.mode === 'api') {
-    evidence.push('Billing mode is API/pay-as-you-go.')
-    return {
-      ...emptyBilling('api', 'medium'),
-      actualBillableUsd: apiEquivalentUsd,
-      apiBilledUsd: apiEquivalentUsd,
-      evidence,
-    }
-  }
-  if (BILLING_PROFILE.mode === 'extra-usage') {
-    evidence.push('Billing mode is forced to extra usage.')
-    return {
-      ...emptyBilling('extra-usage', 'medium'),
-      actualBillableUsd: apiEquivalentUsd,
-      extraUsageUsd: apiEquivalentUsd,
-      evidence,
-    }
-  }
-  if (BILLING_PROFILE.mode === 'unknown') {
-    evidence.push('Billing mode is unknown.')
-    return {
-      ...emptyBilling('unknown', 'low'),
-      unknownUsdEquivalent: apiEquivalentUsd,
-      evidence,
-    }
-  }
-
-  const inLimitWindow =
-    limitState.limitHitAt != null &&
-    ts != null &&
-    ts >= limitState.limitHitAt &&
-    (limitState.limitResetAt == null || ts <= limitState.limitResetAt)
-
-  if (inLimitWindow && BILLING_PROFILE.extraUsage === true) {
-    evidence.push('Claude Code limit was hit and extra usage is enabled.')
-    return {
-      ...emptyBilling('extra-usage', 'low'),
-      actualBillableUsd: apiEquivalentUsd,
-      extraUsageUsd: apiEquivalentUsd,
-      evidence,
-    }
-  }
-  if (inLimitWindow && BILLING_PROFILE.extraUsage === 'unknown') {
-    evidence.push('Claude Code limit was hit; extra usage state is unknown.')
-    return {
-      ...emptyBilling('unknown', 'low'),
-      unknownUsdEquivalent: apiEquivalentUsd,
-      evidence,
-    }
-  }
-
-  evidence.push('Claude Code subscription usage is treated as included plan value.')
-  return {
-    ...emptyBilling('subscription', inLimitWindow ? 'low' : 'medium'),
-    includedUsdEquivalent: apiEquivalentUsd,
-    evidence,
-  }
-}
-
-function zeroPricedMessage(base) {
-  return {
-    model: base?.model,
-    usage: emptyUsage(),
-    costEstimate: emptyCostEstimate(base?.costEstimate?.confidence ?? 'medium'),
-    billing: emptyBilling(base?.billing?.payer ?? 'unknown', base?.billing?.confidence ?? 'low'),
-  }
+function zeroUsageMessage(base) {
+  return { model: base?.model, usage: emptyUsage() }
 }
 
 function extractTextContent(content) {
@@ -417,31 +197,6 @@ function extractTextContent(content) {
     .join('\n')
 }
 
-function parseLimitResetAt(text, ts) {
-  const m = text.match(/resets\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i)
-  if (!m || !ts) return null
-  let hour = Number(m[1])
-  const minute = Number(m[2] ?? 0)
-  const ap = m[3]?.toLowerCase()
-  if (ap === 'pm' && hour < 12) hour += 12
-  if (ap === 'am' && hour === 12) hour = 0
-
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Tokyo',
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric',
-    })
-      .formatToParts(new Date(ts))
-      .filter((p) => p.type !== 'literal')
-      .map((p) => [p.type, Number(p.value)]),
-  )
-  let resetAt = Date.UTC(parts.year, parts.month - 1, parts.day, hour - 9, minute, 0)
-  if (resetAt <= ts) resetAt += 24 * 60 * 60 * 1000
-  return resetAt
-}
-
 function detectLimitEvent(ev, ts) {
   if (!ev.isApiErrorMessage) return null
   const text = extractTextContent(ev.content ?? ev.message?.content ?? ev.error)
@@ -449,7 +204,6 @@ function detectLimitEvent(ev, ts) {
   return {
     at: ts ?? Date.now(),
     text: text.replace(/\s+/g, ' ').trim(),
-    resetAt: parseLimitResetAt(text, ts),
   }
 }
 
@@ -542,16 +296,6 @@ function codexTotalUsageFromTokenCount(info) {
   }
 }
 
-function codexUsageBilling(planType) {
-  const plan = planType ? `Codex ${planType}` : 'Codex'
-  return {
-    ...emptyBilling('unknown', 'low'),
-    evidence: [
-      `${plan} logs expose token usage locally, but this importer does not infer dollar billing.`,
-    ],
-  }
-}
-
 function parseJsonMaybe(value) {
   if (!value || typeof value !== 'string') return {}
   try {
@@ -580,7 +324,7 @@ function buildMiniTimeline(toolCalls, slots = 24) {
   const bins = new Array(slots).fill(0)
   for (const tc of toolCalls) {
     const idx = Math.min(slots - 1, Math.floor(((tc.startedAt - start) / span) * slots))
-    bins[idx] += (tc.costUsd ?? 0) + (tc.durationMs ?? 0) / 60000
+    bins[idx] += (tc.tokensIn ?? 0) + (tc.tokensOut ?? 0) + (tc.durationMs ?? 0) / 60000
   }
   const max = Math.max(...bins, 0.0001)
   return bins.map((b) => Math.max(0.08, b / max))
@@ -639,20 +383,12 @@ function parseTranscript(filePath, projectFolder) {
   let totalOut = 0
   let totalCacheCreate = 0
   let totalCacheRead = 0
-  let totalCost = 0
   let totalUsage = emptyUsage()
-  let totalCostEstimate = emptyCostEstimate()
-  let totalBilling = emptyBilling('unknown', 'medium')
   let retryCount = 0
   const countedMessageIds = new Set()
-  const messagePricingCache = new Map() // msgId -> priced message metadata
-  const visibleMessageCostAssigned = new Set()
+  const messageUsageCache = new Map() // msgId -> { model, usage }
+  const visibleMessageUsageAssigned = new Set()
   const limitEvents = []
-  const limitState = {
-    limitHitAt: null,
-    limitResetAt: null,
-    limitResetText: '',
-  }
 
   // Round boundaries (each user-text starts a new round; we'll convert to stages later)
   const rounds = [] // array of { startedAt, endedAt, toolCallIds, label }
@@ -669,19 +405,16 @@ function parseTranscript(filePath, projectFolder) {
     rounds.push(currentRound)
   }
 
-  function priceAssistantMessage(msg, ts) {
-    const model = msg?.model
-    const { usage, costEstimate } = estimateUsageCost(model, msg?.usage)
-    const billing = classifyBilling(costEstimate.apiEquivalentUsd, ts, limitState)
-    return { model, usage, costEstimate, billing }
+  function usageForAssistantMessage(msg) {
+    return { model: msg?.model, usage: usageFromAnthropic(msg?.usage) }
   }
 
-  function claimVisiblePricing(msgId, pricing) {
-    if (!pricing) return zeroPricedMessage()
-    if (!msgId) return pricing
-    if (visibleMessageCostAssigned.has(msgId)) return zeroPricedMessage(pricing)
-    visibleMessageCostAssigned.add(msgId)
-    return pricing
+  function claimVisibleUsage(msgId, message) {
+    if (!message) return zeroUsageMessage()
+    if (!msgId) return message
+    if (visibleMessageUsageAssigned.has(msgId)) return zeroUsageMessage(message)
+    visibleMessageUsageAssigned.add(msgId)
+    return message
   }
 
   for (const ev of events) {
@@ -692,12 +425,7 @@ function parseTranscript(filePath, projectFolder) {
     }
 
     const limitEvent = detectLimitEvent(ev, ts)
-    if (limitEvent) {
-      limitEvents.push(limitEvent)
-      limitState.limitHitAt = limitEvent.at
-      limitState.limitResetAt = limitEvent.resetAt
-      limitState.limitResetText = limitEvent.text
-    }
+    if (limitEvent) limitEvents.push(limitEvent)
 
     if (ev.type === 'user') {
       const content = ev.message?.content
@@ -716,7 +444,6 @@ function parseTranscript(filePath, projectFolder) {
           durationMs: 0,
           tokensIn: 0,
           tokensOut: 0,
-          costUsd: 0,
           detail: content.slice(0, 600),
         })
         newRound(ts ?? Date.now(), ttl.slice(0, 50))
@@ -757,25 +484,22 @@ function parseTranscript(filePath, projectFolder) {
         totalCacheRead += usage.cache_read_input_tokens ?? 0
       }
 
-      let messagePricing
-      if (msgId && messagePricingCache.has(msgId)) {
-        messagePricing = messagePricingCache.get(msgId)
+      let messageUsage
+      if (msgId && messageUsageCache.has(msgId)) {
+        messageUsage = messageUsageCache.get(msgId)
       } else {
-        messagePricing = priceAssistantMessage(ev.message, ts)
-        if (msgId) messagePricingCache.set(msgId, messagePricing)
+        messageUsage = usageForAssistantMessage(ev.message)
+        if (msgId) messageUsageCache.set(msgId, messageUsage)
       }
       if (usage && isFirstSeenMsg) {
-        totalUsage = addUsage(totalUsage, messagePricing.usage)
-        totalCostEstimate = addCostEstimate(totalCostEstimate, messagePricing.costEstimate)
-        totalBilling = addBilling(totalBilling, messagePricing.billing)
-        totalCost += messagePricing.costEstimate.apiEquivalentUsd
+        totalUsage = addUsage(totalUsage, messageUsage.usage)
       }
 
       const content = ev.message?.content
       if (Array.isArray(content)) {
         for (const c of content) {
           if (c?.type === 'tool_use') {
-            const visiblePricing = claimVisiblePricing(msgId, messagePricing)
+            const visibleUsage = claimVisibleUsage(msgId, messageUsage)
             const name = c.name
             const kind = classifyKind(name)
             const callId = c.id || `${sessionId}-tc-${toolCalls.length}`
@@ -788,16 +512,13 @@ function parseTranscript(filePath, projectFolder) {
               endedAt: ts ?? Date.now(),
               durationMs: 0,
               tokensIn:
-                visiblePricing.usage.inputTokens +
-                visiblePricing.usage.cacheReadTokens +
-                visiblePricing.usage.cacheWrite5mTokens +
-                visiblePricing.usage.cacheWrite1hTokens,
-              tokensOut: visiblePricing.usage.outputTokens,
-              costUsd: visiblePricing.costEstimate.apiEquivalentUsd,
-              model: visiblePricing.model,
-              usage: visiblePricing.usage,
-              costEstimate: visiblePricing.costEstimate,
-              billing: visiblePricing.billing,
+                visibleUsage.usage.inputTokens +
+                visibleUsage.usage.cacheReadTokens +
+                visibleUsage.usage.cacheWrite5mTokens +
+                visibleUsage.usage.cacheWrite1hTokens,
+              tokensOut: visibleUsage.usage.outputTokens,
+              model: visibleUsage.model,
+              usage: visibleUsage.usage,
               detail: detailFromInput(name, c.input).slice(0, 800),
             }
             toolCalls.push(tc)
@@ -853,7 +574,7 @@ function parseTranscript(filePath, projectFolder) {
               }
             }
           } else if (c?.type === 'text' && typeof c.text === 'string' && c.text.trim()) {
-            const visiblePricing = claimVisiblePricing(msgId, messagePricing)
+            const visibleUsage = claimVisibleUsage(msgId, messageUsage)
             lastAssistantText = c.text
             // Add output event (we'll keep the last one as the final answer)
             const id = `${sessionId}-out-${toolCalls.length}`
@@ -866,16 +587,13 @@ function parseTranscript(filePath, projectFolder) {
               endedAt: ts ?? Date.now(),
               durationMs: 0,
               tokensIn:
-                visiblePricing.usage.inputTokens +
-                visiblePricing.usage.cacheReadTokens +
-                visiblePricing.usage.cacheWrite5mTokens +
-                visiblePricing.usage.cacheWrite1hTokens,
-              tokensOut: visiblePricing.usage.outputTokens,
-              costUsd: visiblePricing.costEstimate.apiEquivalentUsd,
-              model: visiblePricing.model,
-              usage: visiblePricing.usage,
-              costEstimate: visiblePricing.costEstimate,
-              billing: visiblePricing.billing,
+                visibleUsage.usage.inputTokens +
+                visibleUsage.usage.cacheReadTokens +
+                visibleUsage.usage.cacheWrite5mTokens +
+                visibleUsage.usage.cacheWrite1hTokens,
+              tokensOut: visibleUsage.usage.outputTokens,
+              model: visibleUsage.model,
+              usage: visibleUsage.usage,
               detail: c.text.slice(0, 800),
             })
             if (currentRound) currentRound.toolCallIds.push(id)
@@ -906,8 +624,6 @@ function parseTranscript(filePath, projectFolder) {
   for (const r of rounds) {
     const ids = new Set(r.toolCallIds)
     const calls = toolCalls.filter((tc) => ids.has(tc.id))
-    const stageCost = calls.reduce((a, tc) => a + (tc.costUsd ?? 0), 0)
-    const stageBillable = calls.reduce((a, tc) => a + (tc.billing?.actualBillableUsd ?? 0), 0)
     const failed = calls.filter((tc) => tc.status === 'failed').length
     stages.push({
       id: `${sessionId}-st-${stages.length}`,
@@ -915,9 +631,6 @@ function parseTranscript(filePath, projectFolder) {
       startedAt: r.startedAt,
       endedAt: r.endedAt,
       durationMs: Math.max(0, r.endedAt - r.startedAt),
-      costUsd: stageCost,
-      apiEquivalentUsd: stageCost,
-      billableUsd: stageBillable,
       status: failed > 0 ? 'partial' : 'success',
       summary:
         calls.length === 0
@@ -933,9 +646,6 @@ function parseTranscript(filePath, projectFolder) {
       startedAt,
       endedAt,
       durationMs,
-      costUsd: totalCost,
-      apiEquivalentUsd: totalCost,
-      billableUsd: totalBilling.actualBillableUsd,
       status: retryCount > 0 ? 'partial' : 'success',
       summary: `${toolCalls.length} steps recorded.`,
       toolCallIds: toolCalls.map((tc) => tc.id),
@@ -1026,13 +736,6 @@ function parseTranscript(filePath, projectFolder) {
   // Title / summary
   const title = deriveTitle(firstUserText, sessionId)
   const summary = deriveSummary(firstUserText, lastAssistantText)
-  const sessionBilling = {
-    ...totalBilling,
-    mode: BILLING_PROFILE.mode,
-    planName: BILLING_PROFILE.planName,
-    limitHit: limitEvents.length > 0,
-    limitResetText: limitState.limitResetText || undefined,
-  }
 
   return {
     id: sessionId,
@@ -1044,10 +747,7 @@ function parseTranscript(filePath, projectFolder) {
     durationMs,
     tokensIn: totalIn + totalCacheCreate + totalCacheRead,
     tokensOut: totalOut,
-    costUsd: totalCost,
     usage: totalUsage,
-    costEstimate: totalCostEstimate,
-    billing: sessionBilling,
     retryCount,
     toolCallCount: toolCalls.length,
     changedFileCount: files.length,
@@ -1096,7 +796,6 @@ function parseCodexTranscript(filePath, titleIndex) {
   let firstTs = null
   let lastTs = null
   let model = meta.model ?? ''
-  let planType = null
   let retryCount = 0
   let finalUsage = emptyUsage()
   let latestUsage = emptyUsage()
@@ -1143,7 +842,6 @@ function parseCodexTranscript(filePath, titleIndex) {
       const usage = codexTotalUsageFromTokenCount(ev.payload.info)
       if (usage) finalUsage = usage
       latestUsage = codexUsageFromTokenCount(ev.payload.info)
-      if (ev.payload.rate_limits?.plan_type) planType = ev.payload.rate_limits.plan_type
       continue
     }
 
@@ -1164,11 +862,8 @@ function parseCodexTranscript(filePath, titleIndex) {
         durationMs: 0,
         tokensIn: 0,
         tokensOut: 0,
-        costUsd: 0,
         model,
         usage: emptyUsage(),
-        costEstimate: emptyCostEstimate('low'),
-        billing: codexUsageBilling(planType),
         detail: cleaned.slice(0, 900),
       }
       pushCall(call)
@@ -1192,11 +887,8 @@ function parseCodexTranscript(filePath, titleIndex) {
         durationMs: 0,
         tokensIn: latestUsage.inputTokens + latestUsage.cacheReadTokens,
         tokensOut: latestUsage.outputTokens,
-        costUsd: 0,
         model,
         usage: latestUsage,
-        costEstimate: emptyCostEstimate('low'),
-        billing: codexUsageBilling(planType),
         detail: msg.slice(0, 1200),
       })
       continue
@@ -1225,11 +917,8 @@ function parseCodexTranscript(filePath, titleIndex) {
           durationMs: 0,
           tokensIn: 0,
           tokensOut: 0,
-          costUsd: 0,
           model,
           usage: emptyUsage(),
-          costEstimate: emptyCostEstimate('low'),
-          billing: codexUsageBilling(planType),
           detail: msgText.slice(0, 900),
         })
         newRound(ts, title.slice(0, 50))
@@ -1247,11 +936,8 @@ function parseCodexTranscript(filePath, titleIndex) {
           durationMs: 0,
           tokensIn: latestUsage.inputTokens + latestUsage.cacheReadTokens,
           tokensOut: latestUsage.outputTokens,
-          costUsd: 0,
           model,
           usage: latestUsage,
-          costEstimate: emptyCostEstimate('low'),
-          billing: codexUsageBilling(planType),
           detail: msgText.slice(0, 1200),
         })
       }
@@ -1272,11 +958,8 @@ function parseCodexTranscript(filePath, titleIndex) {
         durationMs: 0,
         tokensIn: latestUsage.inputTokens + latestUsage.cacheReadTokens,
         tokensOut: latestUsage.outputTokens,
-        costUsd: 0,
         model,
         usage: latestUsage,
-        costEstimate: emptyCostEstimate('low'),
-        billing: codexUsageBilling(planType),
         detail: String(detail).slice(0, 1000),
       }
       pushCall(tc)
@@ -1327,9 +1010,6 @@ function parseCodexTranscript(filePath, titleIndex) {
       startedAt: r.startedAt,
       endedAt: r.endedAt ?? endedAt,
       durationMs: Math.max(0, (r.endedAt ?? endedAt) - r.startedAt),
-      costUsd: 0,
-      apiEquivalentUsd: 0,
-      billableUsd: 0,
       status: failed > 0 ? 'partial' : 'success',
       summary: `${calls.length} Codex event${calls.length !== 1 ? 's' : ''}${failed ? `, ${failed} failed` : ''}.`,
       toolCallIds: [...ids],
@@ -1361,18 +1041,6 @@ function parseCodexTranscript(filePath, titleIndex) {
     })
   }
 
-  const billing = {
-    ...codexUsageBilling(planType),
-    mode: 'unknown',
-    planName: planType ? `Codex ${planType}` : 'Codex',
-    limitHit: false,
-  }
-  const costEstimate = {
-    ...emptyCostEstimate('low'),
-    pricingSource: 'codex-local-token-log',
-    pricingVersion: 'unknown',
-  }
-
   return {
     id: `codex-${sessionId}`,
     title: finalTitle,
@@ -1383,10 +1051,7 @@ function parseCodexTranscript(filePath, titleIndex) {
     durationMs,
     tokensIn: totalTokensIn,
     tokensOut: totalTokensOut,
-    costUsd: 0,
     usage: finalUsage,
-    costEstimate,
-    billing,
     retryCount,
     toolCallCount: toolCalls.length,
     changedFileCount: 0,
